@@ -1,5 +1,4 @@
 use chrono::prelude::*;
-use uuid::Uuid;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum EntryType {
@@ -9,7 +8,7 @@ pub enum EntryType {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Entry {
-    pub id: Uuid,
+    pub id: u64,
 
     pub opened: DateTime<Utc>,
     pub closed: Option<DateTime<Utc>>,
@@ -23,7 +22,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn id(&self) -> &Uuid {
+    pub fn id(&self) -> &u64 {
         &self.id
     }
 
