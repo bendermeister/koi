@@ -1,47 +1,69 @@
-use std::{fmt::Display, io, path::Path};
+use std::path::Path;
 
-use store_raw::StoreRaw;
+use crate::entry::{Entry, EntryState};
+use crate::time::prelude::*;
+use rusqlite::Connection;
 
-use crate::entry::Entry;
-
-#[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct Store {
-    pub max_id: u64,
-    pub entries: Vec<Entry>,
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Query<'a> {
+    pub state: Option<EntryState>,
+    pub prefix: Option<&'a str>,
+    pub scheduled_or_deadline: Option<(DateTime, DateTime)>,
 }
-
-mod entry_raw;
-mod store_raw;
 
 #[derive(Debug)]
-pub struct ConversionError;
-
-impl std::error::Error for ConversionError {}
-
-impl Display for ConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "could not convert raw type to type")
-    }
+pub struct Store {
+    db: Connection,
 }
 
-impl Store {
-    pub fn open<P>(path: P) -> io::Result<Store>
-    where
-        P: AsRef<Path>,
-    {
-        let store = StoreRaw::open(path)?;
-        let store: Self = store
-            .try_into()
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+mod db;
 
-        Ok(store)
+impl Store {
+    pub fn open<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let db = db::open(path)?;
+        Ok(Self { db })
     }
 
-    pub fn close<P>(self, path: P) -> io::Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        let store: StoreRaw = self.into();
-        store.close(path)
+    pub fn query(&mut self, query: Query) -> anyhow::Result<Vec<Entry>> {
+        let mut entries = db::get_all_entries(&self.db)?;
+
+        let filter = |entry: &Entry| {
+            if let Some(state) = query.state {
+                if state != entry.state() {
+                    return false;
+                }
+            }
+
+            if let Some(prefix) = query.prefix {
+                if !entry.prefix.starts_with(prefix) {
+                    return false;
+                }
+            }
+
+            if let Some((begin, end)) = query.scheduled_or_deadline {
+                let check_range =
+                    |a: Option<DateTime>| a.map(|a| begin <= a && a < begin).unwrap_or(false);
+
+                let scheduled = check_range(entry.scheduled);
+                let deadline = check_range(entry.deadline);
+                if !(scheduled || deadline) {
+                    return false;
+                }
+            }
+            true
+        };
+
+        entries.retain(filter);
+        Ok(entries)
+    }
+
+    pub fn new_entry_id(&mut self) -> anyhow::Result<u64> {
+        db::get_max_entry_id(&self.db)
+            .map(|id| id.unwrap_or(1) + 1)
+            .map_err(|err| err.into())
+    }
+
+    pub fn add_entry(&mut self, entry: &Entry) -> anyhow::Result<()> {
+        db::add_entry(&self.db, entry)
     }
 }
