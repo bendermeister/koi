@@ -24,6 +24,10 @@ impl Store {
         Ok(Self { db })
     }
 
+    pub fn query_by_id(&mut self, id: u64) -> anyhow::Result<Entry> {
+        db::get_entry_by_id(&self.db, id)
+    }
+
     pub fn query(&mut self, query: Query) -> anyhow::Result<Vec<Entry>> {
         let mut entries = db::get_all_entries(&self.db)?;
 
@@ -42,7 +46,7 @@ impl Store {
 
             if let Some((begin, end)) = query.scheduled_or_deadline {
                 let check_range =
-                    |a: Option<DateTime>| a.map(|a| begin <= a && a < begin).unwrap_or(false);
+                    |a: Option<DateTime>| a.map(|a| begin <= a && a < end).unwrap_or(false);
 
                 let scheduled = check_range(entry.scheduled);
                 let deadline = check_range(entry.deadline);
@@ -60,7 +64,6 @@ impl Store {
     pub fn new_entry_id(&mut self) -> anyhow::Result<u64> {
         db::get_max_entry_id(&self.db)
             .map(|id| id.unwrap_or(1) + 1)
-            .map_err(|err| err.into())
     }
 
     pub fn add_entry(&mut self, entry: &Entry) -> anyhow::Result<()> {

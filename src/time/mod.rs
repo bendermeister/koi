@@ -3,6 +3,7 @@ mod date;
 pub mod util;
 
 pub use date::Date;
+#[allow(clippy::module_inception)]
 mod time;
 pub use time::Time;
 

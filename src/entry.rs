@@ -12,23 +12,6 @@ pub enum EntryType {
 
 impl Display for EntryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
-
-
-
-        let num: u32 = 69;
-        let num: usize = num as usize;
-
-        let num: i32 = 69;
-        // let num: u32 = num.try_into().expect("no negativity here bro");
-        let num: u32 = num.into();
-
-        let num: u32 = 69;
-        let num: u64 = num.into();
-
-
-
-
         let s = match self {
             EntryType::Todo => "todo",
             EntryType::Meeting => "meeting",
@@ -115,8 +98,10 @@ impl Entry {
     }
 
     pub fn state(&self) -> EntryState {
-        self.is_open()
-            .then_some(EntryState::Open)
-            .unwrap_or(EntryState::Closed)
+        if self.is_open() {
+            EntryState::Open
+        } else {
+            EntryState::Closed
+        }
     }
 }

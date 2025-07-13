@@ -176,10 +176,9 @@ impl FromStr for Date {
             _ => (),
         };
 
-        match s.parse::<Duration>() {
-            Ok(duration) => return Ok(today().add_duration(duration)),
-            Err(_) => (),
-        };
+        if let Ok(duration) = s.parse::<Duration>() {
+            return Ok(today().add_duration(duration));
+        }
 
         let mut parts = s.split("-").map(|s| s.trim());
         let year = parts.next().ok_or(())?;
