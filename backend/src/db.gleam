@@ -9,13 +9,22 @@ import gleam/result
 import gleam/string
 import log
 import pog
-import project
 import tag
 import task
 import user
 import youid/uuid
 
-fn uuid_decoder(wrapper: fn(String) -> a) -> decode.Decoder(a) {
+fn uuid_decoder_string(wrapper: fn(String) -> a) {
+  use uuid <- decode.then(decode.string)
+  uuid
+  |> uuid.from_string()
+  |> result.map(uuid.to_string)
+  |> result.map(wrapper)
+  |> result.map(decode.success)
+  |> result.unwrap(decode.failure(wrapper(""), "UUID"))
+}
+
+fn uuid_decoder_bit_array(wrapper: fn(String) -> a) {
   use uuid <- decode.then(decode.bit_array)
   uuid
   |> uuid.from_bit_array()
@@ -23,6 +32,13 @@ fn uuid_decoder(wrapper: fn(String) -> a) -> decode.Decoder(a) {
   |> result.map(wrapper)
   |> result.map(decode.success)
   |> result.unwrap(decode.failure(wrapper(""), "UUID"))
+}
+
+fn uuid_decoder(wrapper: fn(String) -> a) -> decode.Decoder(a) {
+  decode.one_of(uuid_decoder_bit_array(wrapper), [
+    uuid_decoder_bit_array(wrapper),
+    uuid_decoder_string(wrapper),
+  ])
 }
 
 pub fn query_error_format(err: pog.QueryError) {
@@ -115,62 +131,6 @@ pub fn execute(query: pog.Query(a), ctx: context.Context) -> Result(Nil, Nil) {
   |> result.replace(Nil)
 }
 
-// ===========================Project===========================================
-
-pub fn project_fetch_all_for_user(ctx: context.Context, owner: user.Id) {
-  "
-  SELECT id, name, owner FROM project WHERE owner = $1 ORDER BY name;
-  "
-  |> pog.query()
-  |> pog.parameter(owner.inner |> pog.text)
-  |> pog.returning({
-    use id <- decode.field(0, uuid_decoder(project.Id))
-    use name <- decode.field(1, decode.string)
-    use owner <- decode.field(2, uuid_decoder(user.Id))
-    project.Project(id:, name:, owner:)
-    |> decode.success
-  })
-  |> fetch(ctx)
-}
-
-pub fn project_insert(
-  ctx: context.Context,
-  project: project.Project,
-) -> Result(project.Project, Nil) {
-  let id = project.Id(uuid.v4() |> uuid.to_string())
-  let project = project.Project(..project, id:)
-  "
-  INSERT INTO project (id, name, owner) VALUES($1, $2, $3);
-  "
-  |> pog.query()
-  |> pog.parameter(project.id.inner |> pog.text)
-  |> pog.parameter(project.name |> pog.text)
-  |> pog.parameter(project.owner.inner |> pog.text)
-  |> execute(ctx)
-  |> result.replace(project)
-}
-
-pub fn project_update(ctx: context.Context, project: project.Project) {
-  "
-  UPDATE project SET
-    name = $2,
-    owner = $3
-  WHERE id = $1;
-  "
-  |> pog.query()
-  |> pog.parameter(project.id.inner |> pog.text)
-  |> pog.parameter(project.name |> pog.text)
-  |> pog.parameter(project.owner.inner |> pog.text)
-  |> execute(ctx)
-}
-
-pub fn project_delete(ctx: context.Context, project: project.Id) {
-  "DELETE FROM project WHERE id = $1;"
-  |> pog.query()
-  |> pog.parameter(project.inner |> pog.text)
-  |> execute(ctx)
-}
-
 // ===========================Tag===============================================
 
 pub fn tag_insert(ctx: context.Context, tag: tag.Tag) -> Result(tag.Tag, Nil) {
@@ -210,18 +170,14 @@ pub fn tag_delete(ctx: context.Context, tag: tag.Id) {
 
 pub fn tag_fetch_all(ctx: context.Context, user: user.Id) {
   "
-  SELECT tag.id, tag.name, tag.owner 
-  FROM project INNER JOIN tag ON project.id = tag.owner 
-  WHERE 
-      project.owner = $1
-  ORDER BY tag.name ASC
+  SELECT id, name, owner FROM tag WHERE owner = $1;
   "
   |> pog.query()
   |> pog.parameter(user.inner |> pog.text)
   |> pog.returning({
     use id <- decode.field(0, uuid_decoder(tag.Id))
     use name <- decode.field(1, decode.string)
-    use owner <- decode.field(2, uuid_decoder(project.Id))
+    use owner <- decode.field(2, uuid_decoder(user.Id))
     tag.Tag(id:, name:, owner:)
     |> decode.success()
   })
@@ -292,17 +248,14 @@ pub fn task_delete(ctx: context.Context, task: task.Id) {
 
 pub fn task_fetch_all_for_user(ctx: context.Context, user: user.Id) {
   "
-  SELECT task.id, task.owner, task.title, task.opened, task.closed, body
-  FROM project INNER JOIN task ON project.id = task.owner 
-  WHERE 
-      project.owner = $1
-  ORDER BY task.opened
+  SELECT id, owner, title, opened, closed, body
+  FROM task WHERE owner = $1;
   "
   |> pog.query()
   |> pog.parameter(user.inner |> pog.text)
   |> pog.returning({
     use id <- decode.field(0, uuid_decoder(task.Id))
-    use owner <- decode.field(1, uuid_decoder(project.Id))
+    use owner <- decode.field(1, uuid_decoder(user.Id))
     use title <- decode.field(2, decode.string)
     use opened <- decode.field(3, date_time.decoder())
     use closed <- decode.field(4, decode.optional(date_time.decoder()))
@@ -314,6 +267,22 @@ pub fn task_fetch_all_for_user(ctx: context.Context, user: user.Id) {
 }
 
 // ===========================User==============================================
+
+pub fn user_token_reset(ctx: context.Context, user: user.Id) {
+  "UPDATE users SET token = $2 WHERE id = $1;"
+  |> pog.query()
+  |> pog.parameter(user.inner |> pog.text)
+  |> pog.parameter(uuid.v4() |> uuid.to_string |> pog.text)
+  |> execute(ctx)
+}
+
+pub fn user_password_reset(ctx: context.Context, user: user.Id) {
+  "UPDATE users SET password = $2 WHERE id = $1;"
+  |> pog.query()
+  |> pog.parameter(user.inner |> pog.text)
+  |> pog.parameter(beecrypt.hash("password") |> pog.text)
+  |> execute(ctx)
+}
 
 pub fn user_fetch(ctx: context.Context, user: user.Id) {
   "SELECT id, name FROM users WHERE id = $1 LIMIT 1;"

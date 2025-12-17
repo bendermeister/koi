@@ -25,4 +25,10 @@
     .text-outline-pine {
         -webkit-text-stroke: 1px var(--color-pine);
     }
+    .clickable {
+        @apply hover:cursor-pointer hover:bg-foam hover:text-base transition-colors duration-150;
+    }
+    .clickable-focus {
+        @apply hover:cursor-pointer bg-foam text-base transition-colors duration-150;
+    }
 }

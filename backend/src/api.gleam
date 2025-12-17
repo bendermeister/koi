@@ -6,7 +6,6 @@ import gleam/json
 import gleam/option.{Some}
 import gleam/result
 import log
-import project
 import tag
 import task
 import user
@@ -66,11 +65,6 @@ pub fn api(
 
   case path {
     ["myself"] -> myself(ctx)
-    // Project
-    ["project", "fetch", "all"] -> project_fetch_all(ctx, req)
-    ["project", "new"] -> project_new(ctx, req)
-    ["project", "update"] -> project_update(ctx, req)
-    ["project", "delete"] -> project_delete(ctx, req)
 
     // Tag
     ["tag", "fetch", "all"] -> tag_fetch_all(ctx, req)
@@ -89,8 +83,32 @@ pub fn api(
     ["user", "new"] -> user_new(ctx, req)
     ["user", "update"] -> user_update(ctx, req)
     ["user", "delete"] -> user_delete(ctx, req)
+    ["user", "password", "reset"] -> user_password_reset(ctx, req)
+    ["user", "token", "reset"] -> user_token_reset(ctx, req)
     _ -> wisp.not_found() |> Ok
   }
+}
+
+fn user_token_reset(
+  ctx: context.Context,
+  req: wisp.Request,
+) -> Result(wisp.Response, Nil) {
+  use <- admin_middleware(ctx)
+  parse_request_body(ctx, req, user.id_decoder())
+  |> result.try(db.user_token_reset(ctx, _))
+  |> log.on_error(ctx, "could not reset users token")
+  |> result.replace(wisp.ok())
+}
+
+fn user_password_reset(
+  ctx: context.Context,
+  req: wisp.Request,
+) -> Result(wisp.Response, Nil) {
+  use <- admin_middleware(ctx)
+  parse_request_body(ctx, req, user.id_decoder())
+  |> result.try(db.user_password_reset(ctx, _))
+  |> log.on_error(ctx, "could not reset password")
+  |> result.replace(wisp.ok())
 }
 
 fn myself(ctx: context.Context) -> Result(wisp.Response, Nil) {
@@ -112,7 +130,10 @@ fn user_delete(
   req: wisp.Request,
 ) -> Result(wisp.Response, Nil) {
   use <- admin_middleware(ctx)
-  todo
+  parse_request_body(ctx, req, user.id_decoder())
+  |> result.try(db.user_delete(ctx, _))
+  |> log.on_error(ctx, "could not delete user")
+  |> result.replace(wisp.ok())
 }
 
 fn user_update(
@@ -120,7 +141,10 @@ fn user_update(
   req: wisp.Request,
 ) -> Result(wisp.Response, Nil) {
   use <- admin_middleware(ctx)
-  todo
+  parse_request_body(ctx, req, user.json_decoder())
+  |> result.try(db.user_update(ctx, _))
+  |> log.on_error(ctx, "could not update user")
+  |> result.replace(wisp.ok())
 }
 
 fn user_new(
@@ -128,7 +152,11 @@ fn user_new(
   req: wisp.Request,
 ) -> Result(wisp.Response, Nil) {
   use <- admin_middleware(ctx)
-  todo
+  parse_request_body(ctx, req, user.json_decoder())
+  |> result.try(db.user_insert(ctx, _))
+  |> log.on_error(ctx, "could not insert new user")
+  |> result.map(user.to_json)
+  |> result.map(response_from_json)
 }
 
 fn user_fetch_all(
@@ -226,7 +254,14 @@ fn tag_new(
   ctx: context.Context,
   req: wisp.Request,
 ) -> Result(wisp.Response, Nil) {
+  let user =
+    ctx.user
+    |> option.to_result(Nil)
+    |> log.on_error(ctx, "user is not logged in")
+  use user <- result.try(user)
+
   parse_request_body(ctx, req, tag.json_decoder())
+  |> result.map(fn(tag) { tag.Tag(..tag, owner: user.id) })
   |> result.try(db.tag_insert(ctx, _))
   |> result.map(tag.to_json)
   |> result.map(response_from_json)
@@ -245,48 +280,4 @@ fn tag_fetch_all(
   |> result.map(json.array(_, tag.to_json))
   |> result.map(response_from_json)
   |> log.on_error(ctx, "could not fetch all tags")
-}
-
-fn project_delete(
-  ctx: context.Context,
-  req: wisp.Request,
-) -> Result(wisp.Response, Nil) {
-  parse_request_body(ctx, req, project.id_decoder())
-  |> result.try(db.project_delete(ctx, _))
-  |> result.replace(wisp.ok())
-  |> log.on_error(ctx, "could not delete project")
-}
-
-fn project_update(
-  ctx: context.Context,
-  req: wisp.Request,
-) -> Result(wisp.Response, Nil) {
-  parse_request_body(ctx, req, project.json_decoder())
-  |> result.try(db.project_update(ctx, _))
-  |> result.replace(wisp.ok())
-  |> log.on_error(ctx, "could not update project")
-}
-
-fn project_new(
-  ctx: context.Context,
-  req: wisp.Request,
-) -> Result(wisp.Response, Nil) {
-  parse_request_body(ctx, req, project.json_decoder())
-  |> result.try(db.project_insert(ctx, _))
-  |> result.map(project.to_json)
-  |> result.map(response_from_json)
-  |> log.on_error(ctx, "could not create new project")
-}
-
-fn project_fetch_all(
-  ctx: context.Context,
-  _: wisp.Request,
-) -> Result(wisp.Response, Nil) {
-  ctx.user
-  |> option.to_result(Nil)
-  |> result.map(fn(user) { user.id })
-  |> result.try(db.project_fetch_all_for_user(ctx, _))
-  |> result.map(json.array(_, project.to_json))
-  |> result.map(response_from_json)
-  |> log.on_error(ctx, "could not fetch all projects")
 }

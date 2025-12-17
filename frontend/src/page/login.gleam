@@ -98,10 +98,13 @@ fn view(model: Model) {
             False -> element.none()
           },
           html.div([attr.class("w-full flex justify-end")], [
-            component.button("login", [
-              attr.class("w-fit"),
-              event.on_click(UserSubmitted),
-            ]),
+            component.button(
+              [
+                attr.class("w-fit"),
+                event.on_click(UserSubmitted),
+              ],
+              [html.text("login")],
+            ),
           ]),
         ],
       ),

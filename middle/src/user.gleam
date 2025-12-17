@@ -1,7 +1,5 @@
-import gleam/bit_array
 import gleam/dynamic/decode
 import gleam/json
-import gleam/option
 
 pub type Id {
   Id(inner: String)
@@ -25,9 +23,8 @@ pub fn to_json(user: User) {
 }
 
 pub fn id_decoder() {
-  use id <- decode.then(decode.bit_array)
-  todo
-  // id |> Id |> decode.success()
+  use id <- decode.then(decode.string)
+  id |> Id |> decode.success()
 }
 
 pub fn json_decoder() {

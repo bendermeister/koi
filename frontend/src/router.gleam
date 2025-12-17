@@ -2,7 +2,7 @@ import component/component
 import ffi
 import gleam/io
 import gleam/list
-import gleam/option
+import gleam/option.{None}
 import gleam/pair
 import gleam/result
 import icon
@@ -10,10 +10,11 @@ import lustre/attribute as attr
 import lustre/effect
 import lustre/element
 import lustre/element/html
+import lustre/event
 import modem
 import page/login
 import page/not_found
-import page/project_overview
+import page/tag
 import page/user_overview
 import route
 import rsvp
@@ -28,6 +29,8 @@ pub type Message {
   ClientLoadedUri(route: route.Route)
   ClientReceivedUser(user: user.User)
   MessageError(message: String)
+  MessageInfo(message: String)
+  UserChangedRoute(route: route.Route)
   NotLoggedIn
 }
 
@@ -46,7 +49,7 @@ pub fn init(_) {
     False -> route.Login
   }
 
-  let model = Model(route:, user: option.None)
+  let model = Model(route:, user: None)
 
   let get_myself =
     util.json_handler(
@@ -65,7 +68,7 @@ pub fn init(_) {
 }
 
 pub fn update(model: Model, message: Message) {
-  echo model
+  echo "router.update"
   case message {
     ClientLoadedUri(route:) -> #(Model(..model, route:), effect.none())
     ClientReceivedUser(user:) ->
@@ -78,6 +81,14 @@ pub fn update(model: Model, message: Message) {
       util.not_logged_in()
       |> pair.new(model, _)
     }
+    UserChangedRoute(route:) -> {
+      let effect = modem.push(route.to_string(route), None, None)
+      #(model, effect)
+    }
+    MessageInfo(message:) -> {
+      io.println(message)
+      #(model, effect.none())
+    }
   }
 }
 
@@ -85,7 +96,7 @@ fn header(model: Model) {
   let selected = fn(route) {
     case model.route == route {
       False -> attr.none()
-      True -> attr.class("bg-foam rounded-lg text-overlay")
+      True -> attr.class("clickable-focus")
     }
   }
 
@@ -113,28 +124,33 @@ fn header(model: Model) {
       html.div([attr.class("flex flex-row gap-4 justify-end items-center")], [
         component.icon_and_text(
           [
-            attr.class("p-2 hover:cursor-pointer"),
+            attr.class("p-2 rounded-lg clickable"),
           ],
           icon.calendar([attr.class("size-5")]),
           "calendar",
         ),
         component.icon_and_text(
           [
-            attr.class("p-2 hover:cursor-pointer"),
+            attr.class("p-2 rounded-lg clickable"),
           ],
           icon.task([attr.class("size-5")]),
           "tasks",
         ),
         component.icon_and_text(
           [
-            attr.class("p-2 hover:cursor-pointer"),
-            selected(route.ProjectOverview),
+            attr.class("p-2 rounded-lg clickable"),
+            event.on_click(UserChangedRoute(route.Tag)),
+            selected(route.Tag),
           ],
-          icon.project([attr.class("size-5")]),
-          "projects",
+          icon.tag([attr.class("size-5")]),
+          "tags",
         ),
         component.icon_and_text(
-          [attr.class("p-2 hover:cursor-pointer"), selected(route.UserOverview)],
+          [
+            attr.class("p-2 rounded-lg clickable"),
+            selected(route.UserOverview),
+            event.on_click(UserChangedRoute(route.UserOverview)),
+          ],
           icon.users([attr.class("size-5")]),
           "users",
         )
@@ -161,8 +177,9 @@ pub fn view(model: Model) {
   case model.route {
     route.Login -> login.element()
     route.NotFound -> not_found.element() |> layout(model)
-    route.ProjectOverview -> project_overview.element() |> layout(model)
     route.UserOverview -> user_overview.element() |> layout(model)
+    route.Task -> todo
+    route.Tag -> tag.element() |> layout(model)
   }
   |> base()
 }

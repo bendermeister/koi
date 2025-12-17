@@ -4,16 +4,18 @@ import gleam/uri
 pub type Route {
   NotFound
   Login
-  ProjectOverview
   UserOverview
+  Task
+  Tag
 }
 
 pub fn to_string(route: Route) {
   case route {
     Login -> "/login"
-    ProjectOverview -> "/project/overview"
     NotFound -> "/not_found"
     UserOverview -> "/user/overview"
+    Task -> "/task"
+    Tag -> "/tag"
   }
 }
 
@@ -21,7 +23,8 @@ pub fn from_string_(route: String) {
   case uri.path_segments(route) {
     ["login"] -> Login |> Ok
     ["not_found"] -> NotFound |> Ok
-    ["project", "overview"] -> ProjectOverview |> Ok
+    ["task"] -> Task |> Ok
+    ["tag"] -> Tag |> Ok
     ["user", "overview"] -> UserOverview |> Ok
     _ -> Error(Nil)
   }
@@ -45,5 +48,5 @@ pub fn to_uri(route: Route) {
 }
 
 pub fn home() {
-  ProjectOverview
+  NotFound
 }

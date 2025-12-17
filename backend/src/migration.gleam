@@ -53,6 +53,11 @@ const migrations = [
   migration_0008,
   migration_0009,
   migration_0010,
+  migration_0011,
+  migration_0012,
+  migration_0013,
+  migration_0014,
+  migration_0015,
 ]
 
 pub fn get_level(ctx: context.Context) -> Result(Int, Nil) {
@@ -201,5 +206,35 @@ fn migration_0010(ctx: context.Context) {
   |> pog.parameter("admin" |> pog.text())
   |> pog.parameter("admin" |> beecrypt.hash() |> pog.text)
   |> pog.parameter(uuid.v4() |> uuid.to_string |> pog.text)
+  |> db.execute(ctx)
+}
+
+fn migration_0011(ctx: context.Context) {
+  "ALTER TABLE tag DROP COLUMN owner;"
+  |> pog.query()
+  |> db.execute(ctx)
+}
+
+fn migration_0012(ctx: context.Context) {
+  "ALTER TABLE tag ADD COLUMN owner UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE"
+  |> pog.query()
+  |> db.execute(ctx)
+}
+
+fn migration_0013(ctx: context.Context) {
+  "ALTER TABLE task DROP COLUMN owner;"
+  |> pog.query()
+  |> db.execute(ctx)
+}
+
+fn migration_0014(ctx: context.Context) {
+  "ALTER TABLE task ADD COLUMN owner UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE"
+  |> pog.query()
+  |> db.execute(ctx)
+}
+
+fn migration_0015(ctx: context.Context) {
+  "DROP TABLE project;"
+  |> pog.query()
   |> db.execute(ctx)
 }

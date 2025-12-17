@@ -20,6 +20,23 @@ fn format_rsvp_error(err: rsvp.Error) {
   }
 }
 
+pub fn ok_handler(happy: b, not_logged_in: b, error: fn(String) -> b) {
+  rsvp.expect_ok_response(fn(response) {
+    case response {
+      Ok(_) -> happy
+      Error(err) ->
+        case err {
+          rsvp.HttpError(resp) ->
+            case resp.status {
+              401 -> not_logged_in
+              _ -> format_rsvp_error(rsvp.HttpError(resp)) |> error
+            }
+          other -> format_rsvp_error(other) |> error
+        }
+    }
+  })
+}
+
 pub fn json_handler(
   decoder: decode.Decoder(a),
   happy: fn(a) -> b,
