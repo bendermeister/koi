@@ -1,6 +1,4 @@
-import component
 import gleam/dynamic/decode
-import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import icon
@@ -9,8 +7,10 @@ import lustre/effect
 import lustre/element/html
 import lustre/event
 import modem
+import page/agenda
 import page/inbox
 import page/login
+import page/open
 import route
 import rsvp
 import user
@@ -35,10 +35,11 @@ pub fn view(model: Model) {
   case model.route {
     route.NotFound -> html.text("404") |> layout(model, _)
     route.Login -> login.element()
-    route.Agenda -> html.text("agenda") |> layout(model, _)
+    route.Agenda -> agenda.element() |> layout(model, _)
     route.Inbox -> inbox.element() |> layout(model, _)
     route.Archive -> html.text("archive") |> layout(model, _)
     route.Calendar -> html.text("calendar") |> layout(model, _)
+    route.Open -> open.element() |> layout(model, _)
   }
   |> base_view
 }
@@ -179,6 +180,10 @@ fn sidebar_open(model: Model) {
             icon.inbox([]),
             html.text("inbox"),
           ]),
+          html.div([class, ..route(route.Open)], [
+            icon.open([]),
+            html.text("open"),
+          ]),
           html.div([class, ..route(route.Calendar)], [
             icon.calendar([]),
             html.text("calendar"),
@@ -226,6 +231,7 @@ fn sidebar_closed(model: Model) {
           ),
           html.div([class, ..route(route.Agenda)], [icon.agenda([])]),
           html.div([class, ..route(route.Inbox)], [icon.inbox([])]),
+          html.div([class, ..route(route.Open)], [icon.open([])]),
           html.div([class, ..route(route.Calendar)], [icon.calendar([])]),
           html.div([class, ..route(route.Archive)], [icon.archive([])]),
         ],

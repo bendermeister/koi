@@ -15,7 +15,7 @@ pub fn card(attrs, elements) {
 
 pub fn input(attrs) {
   html.input([
-    attr.class("w-full focus:outline-none p-2 border rounded-lg"),
+    attr.class("w-full focus:outline-none p-2 border-muted border rounded-lg"),
     ..attrs
   ])
 }
@@ -97,7 +97,12 @@ pub fn label_textarea(attrs, label, value) {
   html.div([attr.class("w-full flex flex-col gap-2 items-start")], [
     html.div([], [html.text(label)]),
     html.textarea(
-      [attr.class("w-full focus:outline-none p-2 border rounded-lg"), ..attrs],
+      [
+        attr.class(
+          "w-full focus:outline-none p-2 border-muted border rounded-lg",
+        ),
+        ..attrs
+      ],
       value,
     ),
   ])

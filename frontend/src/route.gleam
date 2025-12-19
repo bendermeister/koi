@@ -8,6 +8,7 @@ pub type Route {
   Agenda
   Inbox
   Archive
+  Open
 }
 
 pub fn from_uri(route: uri.Uri) {
@@ -17,6 +18,7 @@ pub fn from_uri(route: uri.Uri) {
     ["inbox"] -> Inbox
     ["archive"] -> Archive
     ["calendar"] -> Calendar
+    ["open"] -> Open
     _ -> NotFound
   }
 }
@@ -33,6 +35,7 @@ pub fn to_string(route: Route) {
     Inbox -> "/inbox"
     Archive -> "/archive"
     Calendar -> "/calendar"
+    Open -> "/open"
   }
 }
 
