@@ -87,39 +87,39 @@ pub fn month_length_12_test() {
 
 pub fn parse_00_test() {
   let date = "2025-02-01"
-  assert Ok(Date(2025, Feb, 1)) == date.parse(date)
+  assert Ok(Date(2025, Feb, 1)) == date.from_string(date)
 }
 
 pub fn parse_01_test() {
-  assert Error(Nil) == date.parse("2025-01-01-01")
+  assert Error(Nil) == date.from_string("2025-01-01-01")
 }
 
 pub fn parse_02_test() {
-  assert Error(Nil) == date.parse("2025-01")
+  assert Error(Nil) == date.from_string("2025-01")
 }
 
 pub fn parse_03_test() {
-  assert Error(Nil) == date.parse("2025")
+  assert Error(Nil) == date.from_string("2025")
 }
 
 pub fn parse_04_test() {
-  assert Error(Nil) == date.parse("word-01-01")
+  assert Error(Nil) == date.from_string("word-01-01")
 }
 
 pub fn parse_05_test() {
-  assert Error(Nil) == date.parse("2025-word-01")
+  assert Error(Nil) == date.from_string("2025-word-01")
 }
 
 pub fn parse_06_test() {
-  assert Error(Nil) == date.parse("2025-01-word")
+  assert Error(Nil) == date.from_string("2025-01-word")
 }
 
 pub fn parse_07_test() {
-  assert Error(Nil) == date.parse("2025-13-01")
+  assert Error(Nil) == date.from_string("2025-13-01")
 }
 
 pub fn parse_08_test() {
-  assert Error(Nil) == date.parse("2025-01-32")
+  assert Error(Nil) == date.from_string("2025-01-32")
 }
 
 pub fn to_string_test() {
@@ -146,4 +146,28 @@ pub fn from_birl_test() {
     |> birl.parse()
 
   assert Date(2025, Jan, 2) == time |> date.from_birl()
+}
+
+pub fn range_to_from_json_test() {
+  let range = date.range_new(Date(2025, Jan, 3), Date(2026, Feb, 5))
+  let assert Ok(out) =
+    range
+    |> date.range_to_json()
+    |> json.to_string
+    |> json.parse(date.range_json_decoder())
+  assert out == range
+}
+
+pub fn range_to_list_test() {
+  let range =
+    date.Range(Date(2025, Jan, 30), Date(2025, Feb, 3))
+    |> date.range_to_list()
+  let expected = [
+    Date(2025, Jan, 30),
+    Date(2025, Jan, 31),
+    Date(2025, Feb, 1),
+    Date(2025, Feb, 2),
+    Date(2025, Feb, 3),
+  ]
+  assert range == expected
 }

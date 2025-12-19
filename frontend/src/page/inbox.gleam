@@ -165,7 +165,7 @@ fn view(model: Model) {
   let tasks =
     model.tasks
     |> list.map(task(model, _))
-    |> list.intersperse(component.hr([attr.class("text-muted")]))
+    |> list.intersperse(html.hr([attr.class("text-overlay")]))
 
   html.div([attr.class("w-full h-full flex flex-col gap-2 font-serif")], [
     component.title([], "inbox"),

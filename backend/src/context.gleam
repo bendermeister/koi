@@ -1,8 +1,8 @@
-import gleam/option
+import gleam/option.{type Option}
 import pog
 import user
 import youid/uuid
 
 pub type Context {
-  Context(id: uuid.Uuid, db: pog.Connection, user: option.Option(user.User))
+  Context(id: uuid.Uuid, db: pog.Connection, user: Option(user.User))
 }

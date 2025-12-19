@@ -4,6 +4,7 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/order
 import gleam/result
 import gleam/string
 
@@ -20,6 +21,84 @@ pub type Month {
   Oct
   Nov
   Dec
+}
+
+pub type Range {
+  Range(start: Date, end: Date)
+}
+
+pub fn range_new(start: Date, end: Date) {
+  let #(start, end) = case compare(start, end) {
+    order.Lt -> #(start, end)
+    order.Eq -> #(start, end)
+    order.Gt -> #(end, start)
+  }
+  Range(start:, end:)
+}
+
+fn range_to_list_(start: Date, end: Date) {
+  use <- bool.guard(when: compare(start, end) == order.Gt, return: [])
+  [start, ..range_to_list_(add_days(start, 1), end)]
+}
+
+pub fn range_to_list(range: Range) {
+  let range = range_new(range.start, range.end)
+  range_to_list_(range.start, range.end)
+}
+
+pub fn range_to_json(range: Range) {
+  [#("start", range.start |> to_json), #("end", range.end |> to_json)]
+  |> json.object()
+}
+
+pub fn range_json_decoder() {
+  use start <- decode.field("start", decoder())
+  use end <- decode.field("end", decoder())
+  range_new(start, end)
+  |> decode.success
+}
+
+pub fn add_days(date: Date, days: Int) {
+  date_resolver(date.year, month_to_int(date.month), date.day + days)
+}
+
+fn date_resolver(year: Int, month: Int, day: Int) {
+  use <- bool.lazy_guard(when: month < 1, return: fn() {
+    date_resolver(year - 1, month + 12, day)
+  })
+  use <- bool.lazy_guard(when: month > 12, return: fn() {
+    date_resolver(year + 1, month - 12, day)
+  })
+  let assert Ok(month) = month_from_int(month)
+  use <- bool.lazy_guard(when: day < 1, return: fn() {
+    let #(prev_year, prev_month) = prev_month(year, month)
+    let prev_month_length = month_length_(prev_year, prev_month)
+    let prev_month = month_to_int(prev_month)
+    date_resolver(prev_year, prev_month, day + prev_month_length)
+  })
+  let month_length = month_length_(year, month)
+  use <- bool.lazy_guard(when: month_length < day, return: fn() {
+    date_resolver(year, month_to_int(month) + 1, day - month_length)
+  })
+
+  Date(year:, month:, day:)
+}
+
+fn prev_month(year: Int, month: Month) {
+  case month {
+    Jan -> #(year - 1, Dec)
+    Feb -> #(year, Jan)
+    Mar -> #(year, Feb)
+    Apr -> #(year, Mar)
+    May -> #(year, Apr)
+    Jun -> #(year, May)
+    Jul -> #(year, Jun)
+    Aug -> #(year, Jul)
+    Sep -> #(year, Aug)
+    Oct -> #(year, Sep)
+    Nov -> #(year, Oct)
+    Dec -> #(year, Nov)
+  }
 }
 
 pub type Date {
@@ -62,7 +141,7 @@ pub fn month_length(date date: Date) {
 }
 
 /// parses a date string in the format: `YYYY-MM-DD` into a date object
-pub fn parse(date: String) {
+pub fn from_string(date: String) {
   let date = date |> string.trim() |> string.split("-") |> list.map(int.parse)
 
   let date = case date {
@@ -133,7 +212,7 @@ pub fn to_json(date: Date) {
 pub fn decoder() {
   use date <- decode.then(decode.string)
   date
-  |> parse()
+  |> from_string()
   |> result.map(decode.success)
   |> result.unwrap(decode.failure(Date(2025, Jan, 1), "Date"))
 }
@@ -147,4 +226,12 @@ pub fn from_birl(time: birl.Time) {
 pub fn now() {
   birl.now()
   |> from_birl
+}
+
+pub fn compare(a: Date, b: Date) {
+  let a_month = month_to_int(a.month)
+  let b_month = month_to_int(b.month)
+  int.compare(a.year, b.year)
+  |> order.break_tie(int.compare(a_month, b_month))
+  |> order.break_tie(int.compare(a.day, b.day))
 }
