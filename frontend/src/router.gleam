@@ -1,185 +1,235 @@
-import component/component
-import ffi
+import component
+import gleam/dynamic/decode
 import gleam/io
-import gleam/list
-import gleam/option.{None}
-import gleam/pair
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import icon
 import lustre/attribute as attr
 import lustre/effect
-import lustre/element
 import lustre/element/html
 import lustre/event
 import modem
+import page/inbox
 import page/login
-import page/not_found
-import page/tag
-import page/user_overview
 import route
 import rsvp
 import user
-import util
+
+pub type SidebarState {
+  SidebarOpen
+  SidebarClosed
+}
 
 pub type Model {
-  Model(route: route.Route, user: option.Option(user.User))
+  Model(route: route.Route, me: Option(user.User), sidebar_state: SidebarState)
 }
 
 pub type Message {
-  ClientLoadedUri(route: route.Route)
-  ClientReceivedUser(user: user.User)
-  MessageError(message: String)
-  MessageInfo(message: String)
   UserChangedRoute(route: route.Route)
-  NotLoggedIn
+  UserToggledSidebar
+  ClientLoadedRoute(route: route.Route)
+  ClientReceivedMe(me: user.User)
+}
+
+pub fn view(model: Model) {
+  case model.route {
+    route.NotFound -> html.text("404") |> layout(model, _)
+    route.Login -> login.element()
+    route.Agenda -> html.text("agenda") |> layout(model, _)
+    route.Inbox -> inbox.element() |> layout(model, _)
+    route.Archive -> html.text("archive") |> layout(model, _)
+    route.Calendar -> html.text("calendar") |> layout(model, _)
+  }
+  |> base_view
+}
+
+fn base_view(element) {
+  html.div(
+    [
+      attr.class(
+        "w-screen h-screen text-text bg-base font-serif border-overlay",
+      ),
+    ],
+    [element],
+  )
 }
 
 pub fn init(_) {
-  let assert Ok(uri) = modem.initial_uri()
-  let route = uri |> route.from_uri()
-
-  let is_logged_in =
-    ffi.get_cookies()
-    |> list.key_find("is_logged_in")
-    |> result.map(fn(x) { x == "true" })
-    |> result.unwrap(False)
-
-  let route = case is_logged_in {
-    True -> route
-    False -> route.Login
+  let decoder = {
+    use is_logged_in <- decode.field("is_logged_in", decode.bool)
+    use me <- decode.field("myself", decode.optional(user.json_decoder()))
+    #(is_logged_in, me) |> decode.success
   }
-
-  let model = Model(route:, user: None)
-
-  let get_myself =
-    util.json_handler(
-      user.json_decoder(),
-      ClientReceivedUser,
-      NotLoggedIn,
-      MessageError,
-    )
+  let fetch_myself =
+    rsvp.expect_json(decoder, fn(response) {
+      response
+      |> result.map(fn(response) {
+        let #(is_logged_in, me) = response
+        case is_logged_in, me {
+          True, Some(me) -> ClientReceivedMe(me:)
+          _, _ -> UserChangedRoute(route.Login)
+        }
+      })
+      |> result.unwrap(UserChangedRoute(route.Login))
+    })
     |> rsvp.get("/api/myself", _)
 
-  let effect =
-    modem.init(fn(uri) { uri |> route.from_uri() |> ClientLoadedUri })
+  let route =
+    modem.initial_uri()
+    |> result.map(route.from_uri)
+    |> result.unwrap(route.NotFound)
 
-  let effect = effect.batch([get_myself, effect])
+  let modem_init =
+    modem.init(fn(uri) { uri |> route.from_uri |> ClientLoadedRoute })
+
+  let model = Model(route:, me: None, sidebar_state: SidebarClosed)
+
+  let effect = effect.batch([modem_init, fetch_myself])
+
   #(model, effect)
 }
 
 pub fn update(model: Model, message: Message) {
-  echo "router.update"
   case message {
-    ClientLoadedUri(route:) -> #(Model(..model, route:), effect.none())
-    ClientReceivedUser(user:) ->
-      Model(..model, user: option.Some(user)) |> pair.new(effect.none())
-    MessageError(message:) -> {
-      io.println_error(message)
-      #(model, effect.none())
-    }
-    NotLoggedIn -> {
-      util.not_logged_in()
-      |> pair.new(model, _)
-    }
     UserChangedRoute(route:) -> {
-      let effect = modem.push(route.to_string(route), None, None)
+      let effect = modem.push(route |> route.to_string, None, None)
       #(model, effect)
     }
-    MessageInfo(message:) -> {
-      io.println(message)
+    ClientLoadedRoute(route:) -> {
+      let model = Model(..model, route:)
+      #(model, effect.none())
+    }
+    ClientReceivedMe(me:) -> {
+      let model = Model(..model, me: Some(me))
+      #(model, effect.none())
+    }
+    UserToggledSidebar -> {
+      let sidebar_state = case model.sidebar_state {
+        SidebarOpen -> SidebarClosed
+        SidebarClosed -> SidebarOpen
+      }
+      let model = Model(..model, sidebar_state:)
       #(model, effect.none())
     }
   }
 }
 
-fn header(model: Model) {
-  let selected = fn(route) {
-    case model.route == route {
-      False -> attr.none()
-      True -> attr.class("clickable-focus")
-    }
-  }
+fn layout(model: Model, element) {
+  html.div([attr.class("w-screen h-screen flex flex-row")], [
+    sidebar(model),
+    html.div(
+      [
+        case model.sidebar_state {
+          SidebarOpen -> attr.class("w-[calc(100dvw-9rem)]")
+          SidebarClosed -> attr.class("w-[calc(100dvw-3rem)]")
+        },
 
-  let when_admin = fn(element) {
-    let is_admin =
-      model.user
-      |> option.map(fn(user) { user.name == "admin" })
-      |> option.unwrap(False)
-    case is_admin {
-      False -> element.none()
-      True -> element
+        attr.class("h-screen max-h-screen p-2"),
+      ],
+      [element],
+    ),
+  ])
+}
+
+fn sidebar(model: Model) {
+  case model.sidebar_state {
+    SidebarOpen -> sidebar_open(model)
+    SidebarClosed -> sidebar_closed(model)
+  }
+}
+
+fn sidebar_open(model: Model) {
+  let class =
+    attr.class(
+      "p-2 clickable rounded-lg flex flex-row gap-2 justify-start items-center w-full",
+    )
+  let route = fn(route) {
+    let style = case route == model.route {
+      True -> attr.class("clickable-focus")
+      False -> attr.none()
     }
+    let event = event.on_click(UserChangedRoute(route))
+    [style, event]
+  }
+  html.div(
+    [
+      attr.class(
+        "w-36 bg-overlay h-full flex flex-col justify-between items-center p-2",
+      ),
+    ],
+    [
+      html.div(
+        [attr.class("w-full flex flex-col gap-4 justify-center items-center")],
+        [
+          html.div(
+            [
+              event.on_click(UserToggledSidebar),
+              attr.class("w-full text-left text-rose text-2xl"),
+              attr.class("hover:cursor-pointer"),
+            ],
+            [
+              html.text("koi"),
+            ],
+          ),
+          html.div([class, ..route(route.Agenda)], [
+            icon.agenda([]),
+            html.text("agenda"),
+          ]),
+          html.div([class, ..route(route.Inbox)], [
+            icon.inbox([]),
+            html.text("inbox"),
+          ]),
+          html.div([class, ..route(route.Calendar)], [
+            icon.calendar([]),
+            html.text("calendar"),
+          ]),
+          html.div([class, ..route(route.Archive)], [
+            icon.archive([]),
+            html.text("archive"),
+          ]),
+        ],
+      ),
+    ],
+  )
+}
+
+fn sidebar_closed(model: Model) {
+  let class = attr.class("p-2 clickable rounded-lg")
+  let route = fn(route) {
+    let style = case route == model.route {
+      True -> attr.class("clickable-focus")
+      False -> attr.none()
+    }
+    let event = event.on_click(UserChangedRoute(route))
+    [style, event]
   }
 
   html.div(
     [
       attr.class(
-        "w-full h-[3rem] bg-overlay flex flex-row justify-between items-center p-2",
+        "w-12 bg-overlay h-full flex flex-col justify-between items-center p-2",
       ),
     ],
     [
-      html.div([attr.class("text-2xl text-rose font-extrabold")], [
-        html.text("koi"),
-      ]),
-      html.div([attr.class("flex flex-row gap-4 justify-end items-center")], [
-        component.icon_and_text(
-          [
-            attr.class("p-2 rounded-lg clickable"),
-          ],
-          icon.calendar([attr.class("size-5")]),
-          "calendar",
-        ),
-        component.icon_and_text(
-          [
-            attr.class("p-2 rounded-lg clickable"),
-          ],
-          icon.task([attr.class("size-5")]),
-          "tasks",
-        ),
-        component.icon_and_text(
-          [
-            attr.class("p-2 rounded-lg clickable"),
-            event.on_click(UserChangedRoute(route.Tag)),
-            selected(route.Tag),
-          ],
-          icon.tag([attr.class("size-5")]),
-          "tags",
-        ),
-        component.icon_and_text(
-          [
-            attr.class("p-2 rounded-lg clickable"),
-            selected(route.UserOverview),
-            event.on_click(UserChangedRoute(route.UserOverview)),
-          ],
-          icon.users([attr.class("size-5")]),
-          "users",
-        )
-          |> when_admin(),
-      ]),
+      html.div(
+        [attr.class("w-full flex flex-col gap-4 justify-center items-center")],
+        [
+          html.div(
+            [
+              event.on_click(UserToggledSidebar),
+              attr.class("w-full text-center text-rose text-2xl"),
+              attr.class("hover:cursor-pointer"),
+            ],
+            [
+              html.text("koi"),
+            ],
+          ),
+          html.div([class, ..route(route.Agenda)], [icon.agenda([])]),
+          html.div([class, ..route(route.Inbox)], [icon.inbox([])]),
+          html.div([class, ..route(route.Calendar)], [icon.calendar([])]),
+          html.div([class, ..route(route.Archive)], [icon.archive([])]),
+        ],
+      ),
     ],
   )
-}
-
-fn layout(child, model) {
-  html.div([attr.class("h-screen w-screen flex flex-col")], [
-    header(model),
-    html.div([attr.class("w-full h-[calc(100dvh-3rem)] p-2 overflow-scroll")], [
-      child,
-    ]),
-  ])
-}
-
-fn base(child) {
-  html.div([attr.class("w-screen h-screen text-text bg-base")], [child])
-}
-
-pub fn view(model: Model) {
-  case model.route {
-    route.Login -> login.element()
-    route.NotFound -> not_found.element() |> layout(model)
-    route.UserOverview -> user_overview.element() |> layout(model)
-    route.Task -> todo
-    route.Tag -> tag.element() |> layout(model)
-  }
-  |> base()
 }

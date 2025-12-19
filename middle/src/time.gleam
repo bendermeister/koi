@@ -8,18 +8,17 @@ import gleam/result
 import gleam/string
 
 pub type Time {
-  Time(hour: Int, minute: Int, second: Int)
+  Time(hour: Int, minute: Int)
 }
 
 pub fn to_string(time: Time) {
-  let Time(hour:, minute:, second:) = time
+  let Time(hour:, minute:) = time
   let hour = hour |> int.to_string |> string.pad_start(2, "0")
   let minute = minute |> int.to_string |> string.pad_start(2, "0")
-  let seconds = second |> int.to_string |> string.pad_start(2, "0")
-  hour <> ":" <> minute <> ":" <> seconds
+  hour <> ":" <> minute
 }
 
-pub fn parse(time: String) {
+pub fn from_string(time: String) {
   let time =
     time
     |> string.trim()
@@ -27,30 +26,25 @@ pub fn parse(time: String) {
     |> list.map(int.parse)
 
   let time = case time {
-    [Ok(hour), Ok(minute), Ok(seconds)] -> Ok(#(hour, minute, seconds))
+    [Ok(hour), Ok(minute)] -> Ok(#(hour, minute))
+    [Ok(hour), Ok(minute), Ok(_)] -> Ok(#(hour, minute))
     _ -> Error(Nil)
   }
   use time <- result.try(time)
-  let #(hour, minute, second) = time
+  let #(hour, minute) = time
 
   let is_hour_valid = is_hour_valid(hour)
   let is_minute_valid = is_minute_valid(minute)
-  let is_second_valid = is_second_valid(second)
 
   use <- bool.guard(when: !is_hour_valid, return: Error(Nil))
   use <- bool.guard(when: !is_minute_valid, return: Error(Nil))
-  use <- bool.guard(when: !is_second_valid, return: Error(Nil))
 
-  Time(hour:, minute:, second:)
+  Time(hour:, minute:)
   |> Ok
 }
 
 fn is_minute_valid(minute: Int) {
   0 <= minute && minute <= 59
-}
-
-fn is_second_valid(second: Int) {
-  0 <= second && second <= 59
 }
 
 fn is_hour_valid(hour: Int) {
@@ -64,15 +58,15 @@ pub fn to_json(time: Time) {
 pub fn decoder() {
   use time <- decode.then(decode.string)
   time
-  |> parse()
+  |> from_string()
   |> result.map(decode.success)
-  |> result.unwrap(decode.failure(Time(0, 0, 0), "Time"))
+  |> result.unwrap(decode.failure(Time(0, 0), "Time"))
 }
 
 pub fn from_birl(time: birl.Time) {
-  let birl.TimeOfDay(hour:, minute:, second:, milli_second: _) =
+  let birl.TimeOfDay(hour:, minute:, second: _, milli_second: _) =
     time |> birl.get_time_of_day()
-  Time(hour, minute, second)
+  Time(hour, minute)
 }
 
 pub fn now() {

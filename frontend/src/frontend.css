@@ -31,4 +31,17 @@
     .clickable-focus {
         @apply hover:cursor-pointer bg-foam text-base transition-colors duration-150;
     }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar{
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}
+
+@layer base {
+    html {
+        @apply font-serif;
+    }
 }
