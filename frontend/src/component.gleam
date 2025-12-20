@@ -39,7 +39,12 @@ pub fn time_input(attrs, value: Option(time.Time), handler) {
   let handler = fn(date) {
     date |> time.from_string() |> option.from_result() |> handler
   }
-  input([attr.type_("time"), attr.value(value), event.on_change(handler)])
+  input([
+    attr.type_("time"),
+    attr.value(value),
+    event.on_change(handler),
+    ..attrs
+  ])
 }
 
 pub fn date_input(attrs, value: Option(date.Date), handler) {
@@ -47,7 +52,12 @@ pub fn date_input(attrs, value: Option(date.Date), handler) {
   let handler = fn(date) {
     date |> date.from_string() |> option.from_result() |> handler
   }
-  input([attr.type_("date"), attr.value(value), event.on_change(handler)])
+  input([
+    attr.type_("date"),
+    attr.value(value),
+    event.on_change(handler),
+    ..attrs
+  ])
 }
 
 pub fn labeled_date_input(attrs, label, value, handler) {
@@ -82,11 +92,15 @@ pub fn button(attrs, elements) {
 }
 
 pub fn title(attrs, title) {
-  html.div([attr.class("text-2xl font-serif text-foam")], [html.text(title)])
+  html.div([attr.class("text-2xl font-serif text-foam"), ..attrs], [
+    html.text(title),
+  ])
 }
 
 pub fn subtitle(attrs, title) {
-  html.div([attr.class("text-xl font-serif text-rose")], [html.text(title)])
+  html.div([attr.class("text-xl font-serif text-rose"), ..attrs], [
+    html.text(title),
+  ])
 }
 
 pub fn hr(attrs) {

@@ -8,6 +8,66 @@ import gleam/order
 import gleam/result
 import gleam/string
 
+pub type Weekday {
+  Mon
+  Tue
+  Wed
+  Thu
+  Fri
+  Sat
+  Sun
+}
+
+pub fn weekday_to_string(weekday: Weekday) {
+  case weekday {
+    Mon -> "monday"
+    Tue -> "tuesday"
+    Wed -> "wednesday"
+    Thu -> "thursday"
+    Fri -> "friday"
+    Sat -> "saturday"
+    Sun -> "sunday"
+  }
+}
+
+pub fn to_string_pretty(date: Date) {
+  let month = case date.month {
+    Jan -> "january"
+    Feb -> "february"
+    Mar -> "march"
+    Apr -> "april"
+    May -> "may"
+    Jun -> "june"
+    Jul -> "july"
+    Aug -> "august"
+    Sep -> "september"
+    Oct -> "october"
+    Nov -> "november"
+    Dec -> "december"
+  }
+  let year = date.year |> int.to_string |> string.pad_start(4, "0")
+  let day = date.day |> int.to_string |> string.pad_start(2, "0")
+
+  day <> ". " <> month <> " " <> year
+}
+
+pub fn weekday(date: Date) -> Weekday {
+  let birl =
+    birl.now()
+    |> birl.set_day(birl.Day(date.year, date.month |> month_to_int(), date.day))
+    |> birl.weekday()
+
+  case birl {
+    birl.Mon -> Mon
+    birl.Tue -> Tue
+    birl.Wed -> Wed
+    birl.Thu -> Thu
+    birl.Fri -> Fri
+    birl.Sat -> Sat
+    birl.Sun -> Sun
+  }
+}
+
 pub type Month {
   Jan
   Feb

@@ -4,10 +4,8 @@ import context
 import db
 import gleam/bool
 import gleam/dynamic/decode
-import gleam/http
 import gleam/int
 import gleam/json
-import gleam/option.{Some}
 import gleam/result
 import log
 import user

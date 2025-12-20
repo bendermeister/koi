@@ -1,7 +1,7 @@
+import api_spec
 import context
 import date
 import db
-import gleam/dynamic/decode
 import gleam/http
 import gleam/int
 import gleam/json
@@ -9,6 +9,7 @@ import gleam/option.{None, Some}
 import gleam/result
 import log
 import task
+import user
 import wisp
 import youid/uuid
 
@@ -68,35 +69,46 @@ fn ctx_user(ctx: context.Context) {
 
 pub fn api(ctx: context.Context, req: wisp.Request, path: List(String)) {
   use ctx, req <- authentication_middleware(ctx, req)
+  let path = ["api", ..path]
+
   {
-    case path {
-      ["inbox"] -> inbox(ctx, req)
-      ["task", "new"] -> task_new(ctx, req)
-      ["task", "update"] -> task_update(ctx, req)
-      ["task", "delete"] -> task_delete(ctx, req)
-      ["agenda"] -> agenda(ctx, req)
-      _ -> wisp.not_found() |> Ok
+    let route = api_spec.route_from_path(path)
+    case route {
+      api_spec.TaskNew -> task_new(ctx, req)
+      api_spec.TaskUpdate -> task_update(ctx, req)
+      api_spec.TaskDelete -> task_delete(ctx, req)
+      api_spec.Inbox -> inbox(ctx, req)
+      api_spec.Agenda -> agenda(ctx, req)
+      api_spec.Open -> open(ctx, req)
+      api_spec.NotFound -> wisp.not_found() |> Ok
     }
   }
   |> result.unwrap(wisp.internal_server_error())
 }
 
-fn agenda(ctx, req) {
+fn endpoint_wrapper(
+  endpoint: api_spec.Endpoint(parameter, return),
+  ctx: context.Context,
+  req: wisp.Request,
+  handler: fn(user.User, parameter) -> Result(return, Nil),
+) -> Result(wisp.Response, Nil) {
+  let #(decoder, encoder) = api_spec.receive_request(endpoint)
+
+  let parameter = parse_request_body(ctx, req, decoder())
+  use parameter <- result.try(parameter)
+
   let user = ctx_user(ctx)
   use user <- result.try(user)
 
-  let range = parse_request_body(ctx, req, date.range_json_decoder())
-  use range <- result.try(range)
+  handler(user, parameter)
+  |> result.map(encoder)
+  |> result.map(response_from_json)
+}
 
-  let agenda =
-    db.task_fetch_agenda(ctx, user, range)
-    |> log.on_error(ctx, "could not fetch agenda")
-  use agenda <- result.try(agenda)
-
-  agenda
-  |> json.array(task.to_json)
-  |> response_from_json()
-  |> Ok
+fn agenda(ctx, req) {
+  use owner, range <- endpoint_wrapper(api_spec.agenda, ctx, req)
+  db.task_fetch_agenda(ctx, owner, range)
+  |> log.on_error(ctx, "could not fetch agenda")
 }
 
 fn response_from_json(json) {
@@ -105,19 +117,15 @@ fn response_from_json(json) {
   |> wisp.json_response(200)
 }
 
-fn inbox(ctx: context.Context, _: wisp.Request) {
-  let user = ctx_user(ctx)
-  use user <- result.try(user)
-
-  db.task_fetch_inbox(ctx, user)
+fn inbox(ctx: context.Context, req: wisp.Request) {
+  use owner, _ <- endpoint_wrapper(api_spec.inbox, ctx, req)
+  db.task_fetch_inbox(ctx, owner)
   |> log.on_error(ctx, "could not fetch inbox")
-  |> result.map(json.array(_, task.to_json))
-  |> result.map(response_from_json)
 }
 
-fn task_new(ctx: context.Context, _: wisp.Request) {
-  let user = ctx_user(ctx)
-  use user <- result.try(user)
+fn task_new(ctx: context.Context, req: wisp.Request) {
+  use owner, _ <- endpoint_wrapper(api_spec.task_new, ctx, req)
+
   let task =
     task.Task(
       id: uuid.v4() |> uuid.to_string |> task.Id,
@@ -133,16 +141,11 @@ fn task_new(ctx: context.Context, _: wisp.Request) {
     )
 
   let result =
-    db.task_insert(ctx, user, task)
+    db.task_insert(ctx, owner, task)
     |> log.on_error(ctx, "could not insert new task")
   use _ <- result.try(result)
 
-  log.info(ctx, "new task created")
-
-  task
-  |> task.to_json
-  |> response_from_json()
-  |> Ok
+  Ok(task)
 }
 
 fn parse_request_body(ctx: context.Context, req: wisp.Request, decoder) {
@@ -158,28 +161,18 @@ fn parse_request_body(ctx: context.Context, req: wisp.Request, decoder) {
 }
 
 fn task_update(ctx: context.Context, req: wisp.Request) {
-  let task = parse_request_body(ctx, req, task.json_decoder())
-  use task <- result.try(task)
-
-  let result =
-    db.task_update(ctx, task)
-    |> log.on_error(ctx, "could not update task")
-
-  use _ <- result.try(result)
-
-  wisp.ok()
-  |> Ok()
+  use _, task <- endpoint_wrapper(api_spec.task_update, ctx, req)
+  db.task_update(ctx, task)
 }
 
 fn task_delete(ctx: context.Context, req: wisp.Request) {
-  let task = parse_request_body(ctx, req, task.json_decoder())
-  use task <- result.try(task)
+  use _, task <- endpoint_wrapper(api_spec.task_delete, ctx, req)
+  db.task_delete(ctx, task)
+  |> log.on_error(ctx, "could not delete task")
+}
 
-  let result =
-    db.task_delete(ctx, task)
-    |> log.on_error(ctx, "could not delete task")
-  use _ <- result.try(result)
-
-  wisp.ok()
-  |> Ok
+fn open(ctx: context.Context, req: wisp.Request) {
+  use owner, _ <- endpoint_wrapper(api_spec.open, ctx, req)
+  db.task_fetch_open(ctx, owner)
+  |> log.on_error(ctx, "could not fetch open tasks")
 }

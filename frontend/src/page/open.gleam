@@ -1,10 +1,9 @@
+import api
 import component
 import date
-import gleam/dynamic/decode
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/string
 import icon
 import lustre
@@ -13,7 +12,6 @@ import lustre/effect
 import lustre/element
 import lustre/element/html
 import lustre/event
-import rsvp
 import task
 
 type Model {
@@ -31,13 +29,7 @@ type Message {
 }
 
 fn init(_) {
-  let effect =
-    rsvp.expect_json(decode.list(task.json_decoder()), fn(response) {
-      response
-      |> result.map(ClientReceivedTasks)
-      |> result.unwrap(ErrorMessage("could not load open tasks"))
-    })
-    |> rsvp.get("/api/open", _)
+  let effect = api.open(ClientReceivedTasks, ErrorMessage)
 
   let model = Model(tasks: [], focus: None, query: "")
 
@@ -83,13 +75,7 @@ fn update(model: Model, message: Message) {
           }
         })
 
-      let effect =
-        rsvp.expect_ok_response(fn(response) {
-          response
-          |> result.replace(Message("task updated"))
-          |> result.unwrap(ErrorMessage("task could not be updated"))
-        })
-        |> rsvp.post("/api/task/update", task.to_json(task), _)
+      let effect = api.task_update(task, Message, ErrorMessage)
 
       let model = Model(..model, tasks:, focus:)
       #(model, effect)
@@ -99,13 +85,7 @@ fn update(model: Model, message: Message) {
         model.tasks
         |> list.filter(fn(x) { x != task })
       let focus = None
-      let effect =
-        rsvp.expect_ok_response(fn(response) {
-          response
-          |> result.replace(Message("task deleted"))
-          |> result.unwrap(ErrorMessage("task could not be deleted"))
-        })
-        |> rsvp.post("/api/task/delete", task.to_json(task), _)
+      let effect = api.task_delete(task, Message, ErrorMessage)
 
       let model = Model(..model, focus:, tasks:)
       #(model, effect)

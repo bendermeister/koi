@@ -1,7 +1,7 @@
+import api
 import component
 import date
 import gleam/dict
-import gleam/dynamic/decode
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -14,7 +14,6 @@ import lustre/effect
 import lustre/element
 import lustre/element/html
 import lustre/event
-import rsvp
 import task
 import time
 
@@ -39,22 +38,13 @@ type Message {
   Message(message: String)
 }
 
-fn fetch_agenda(range) {
-  rsvp.expect_json(decode.list(task.json_decoder()), fn(response) {
-    response
-    |> result.map(ClientReceivedTasks)
-    |> result.unwrap(ErrorMessage("could not load tasks"))
-  })
-  |> rsvp.post("/api/agenda", range |> date.range_to_json(), _)
-}
-
 fn init(_) {
   let range = date.range_new(date.now(), date.now() |> date.add_days(6))
 
   let model =
     Model(range:, days: dict.new(), focus: None, overdue: [], tasks: [])
 
-  let effect = fetch_agenda(range)
+  let effect = api.agenda(range, ClientReceivedTasks, ErrorMessage)
 
   #(model, effect)
 }
@@ -135,7 +125,7 @@ fn update(model: Model, message: Message) {
       let days = dict.new()
       let overdue = []
       let model = Model(range:, overdue:, days:, focus: None, tasks: [])
-      let effect = fetch_agenda(range)
+      let effect = api.agenda(range, ClientReceivedTasks, ErrorMessage)
 
       #(model, effect)
     }
@@ -145,7 +135,7 @@ fn update(model: Model, message: Message) {
       let days = dict.new()
       let overdue = []
       let model = Model(range:, overdue:, days:, focus: None, tasks: [])
-      let effect = fetch_agenda(range)
+      let effect = api.agenda(range, ClientReceivedTasks, ErrorMessage)
 
       #(model, effect)
     }
@@ -155,13 +145,7 @@ fn update(model: Model, message: Message) {
       #(model, effect.none())
     }
     UserUpdatedTask(task:) -> {
-      let effect =
-        rsvp.expect_ok_response(fn(response) {
-          response
-          |> result.replace(Message("task updated"))
-          |> result.unwrap(ErrorMessage("task could not be updated"))
-        })
-        |> rsvp.post("/api/task/update", task.to_json(task), _)
+      let effect = api.task_update(task, Message, ErrorMessage)
 
       let focus = Some(task)
 
@@ -180,13 +164,7 @@ fn update(model: Model, message: Message) {
       #(model, effect)
     }
     UserDeletedTask(task:) -> {
-      let effect =
-        rsvp.expect_ok_response(fn(response) {
-          response
-          |> result.replace(Message("task deleted"))
-          |> result.unwrap(ErrorMessage("task could not be deleted"))
-        })
-        |> rsvp.post("/api/task/delete", task.to_json(task), _)
+      let effect = api.task_delete(task, Message, ErrorMessage)
 
       let tasks =
         model.tasks

@@ -381,18 +381,44 @@ pub fn task_fetch_agenda(
     scheduled_start,
     scheduled_end,
     deadline,
-    deadline_time,
+    deadline_time
   FROM tasks WHERE
     owner = $1 AND
     (
       (scheduled IS NOT NULL AND $2 <= scheduled AND scheduled <= $3) OR
-      (deadline IS NOT NULL AND $2 <= deadline AND deadline <= $3)
-    )
+      (deadline IS NOT NULL AND $2 <= deadline AND deadline <= $3) OR
+      (scheduled IS NOT NULL AND scheduled < $4) OR
+      (deadline IS NOT NULL AND deadline < $4)
+    ) AND
+    closed IS NULL
   "
   |> pog.query()
   |> pog.parameter(owner.id.inner |> pog.text())
   |> pog.parameter(range.start |> date_to_value)
   |> pog.parameter(range.end |> date_to_value)
+  |> pog.parameter(date.now() |> date_to_value)
+  |> pog.returning(task_decoder())
+  |> fetch(ctx)
+}
+
+pub fn task_fetch_open(ctx: context.Context, owner: user.User) {
+  "
+  SELECT
+    id,
+    title,
+    body,
+    opened,
+    closed,
+    scheduled,
+    scheduled_start,
+    scheduled_end,
+    deadline,
+    deadline_time
+  FROM tasks WHERE
+    owner = $1 AND closed IS NULL
+  "
+  |> pog.query()
+  |> pog.parameter(owner.id.inner |> pog.text)
   |> pog.returning(task_decoder())
   |> fetch(ctx)
 }

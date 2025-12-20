@@ -4,6 +4,7 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/order
 import gleam/result
 import gleam/string
 
@@ -71,4 +72,9 @@ pub fn from_birl(time: birl.Time) {
 
 pub fn now() {
   birl.now() |> from_birl()
+}
+
+pub fn compare(a: Time, b: Time) {
+  int.compare(a.hour, b.hour)
+  |> order.break_tie(int.compare(a.minute, b.minute))
 }

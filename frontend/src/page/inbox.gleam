@@ -1,11 +1,10 @@
+import api
 import component
 import date
-import gleam/dynamic/decode
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
-import gleam/result
 import icon
 import lustre
 import lustre/attribute as attr
@@ -13,9 +12,7 @@ import lustre/effect
 import lustre/element
 import lustre/element/html
 import lustre/event
-import rsvp
 import task
-import time
 
 type Model {
   Model(tasks: List(task.Task), focus: Option(task.Task))
@@ -33,17 +30,9 @@ type Message {
 }
 
 fn init(_) {
-  let fetch_tasks =
-    rsvp.expect_json(decode.list(task.json_decoder()), fn(response) {
-      response
-      |> result.map(ClientReceivedTasks)
-      |> result.unwrap(ErrorMessage("inbox could not be loaded"))
-    })
-    |> rsvp.get("/api/inbox", _)
-
   let model = Model(tasks: [], focus: None)
 
-  let effect = fetch_tasks
+  let effect = api.inbox(ClientReceivedTasks, ErrorMessage)
 
   #(model, effect)
 }
@@ -51,13 +40,7 @@ fn init(_) {
 fn update(model: Model, message: Message) {
   case message {
     UserCreatedNewTask -> {
-      let effect =
-        rsvp.expect_json(task.json_decoder(), fn(response) {
-          response
-          |> result.map(ClientReceivedNewTask)
-          |> result.unwrap(ErrorMessage("new task could not be created"))
-        })
-        |> rsvp.get("/api/task/new", _)
+      let effect = api.task_new(ClientReceivedNewTask, ErrorMessage)
 
       #(model, effect)
     }
@@ -110,13 +93,7 @@ fn update(model: Model, message: Message) {
           }
         })
 
-      let effect =
-        rsvp.expect_ok_response(fn(response) {
-          response
-          |> result.replace(Message("task updated"))
-          |> result.unwrap(ErrorMessage("failed to update task"))
-        })
-        |> rsvp.post("/api/task/update", task.to_json(task), _)
+      let effect = api.task_update(task, Message, ErrorMessage)
 
       let model = Model(tasks:, focus:)
       #(model, effect)
@@ -132,13 +109,7 @@ fn update(model: Model, message: Message) {
         |> list.filter(fn(x) { x != task })
       let model = Model(tasks:, focus:)
 
-      let effect =
-        rsvp.expect_ok_response(fn(response) {
-          response
-          |> result.replace(Message("task deleted"))
-          |> result.unwrap(ErrorMessage("failed to delete task"))
-        })
-        |> rsvp.post("/api/task/delete", task.to_json(task), _)
+      let effect = api.task_delete(task, Message, ErrorMessage)
       #(model, effect)
     }
   }
