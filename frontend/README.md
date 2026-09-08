@@ -1,7 +1,7 @@
 # frontend
 
 [![Package Version](https://img.shields.io/hexpm/v/frontend)](https://hex.pm/packages/frontend)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/frontend/)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://frontend.hexdocs.pm/)
 
 ```sh
 gleam add frontend@1
@@ -14,7 +14,7 @@ pub fn main() -> Nil {
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/frontend>.
+Further documentation can be found at <https://frontend.hexdocs.pm/>.
 
 ## Development
 

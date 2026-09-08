@@ -1,7 +1,7 @@
 # middle
 
 [![Package Version](https://img.shields.io/hexpm/v/middle)](https://hex.pm/packages/middle)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/middle/)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://middle.hexdocs.pm/)
 
 ```sh
 gleam add middle@1
@@ -14,7 +14,7 @@ pub fn main() -> Nil {
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/middle>.
+Further documentation can be found at <https://middle.hexdocs.pm/>.
 
 ## Development
 
