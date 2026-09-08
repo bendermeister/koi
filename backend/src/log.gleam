@@ -1,67 +1,98 @@
 import birl
-import context
 import gleam/io
-import gleam/result
-import youid/uuid
-
-pub type Level {
-  Info
-  Warn
-  Err
+import gleam/otp/actor
+import gleam/otp/supervision
+import id
+import types.{
+  type Context, type LogActor, type LogActorBuilder, type LogMessage, LogActor,
+  LogActorBuilder, LogMessage,
 }
 
-fn level_to_string(level: Level) {
-  case level {
-    Err -> "ERROR"
-    Info -> "INFO"
-    Warn -> "WARN"
-  }
-}
-
-pub fn log(ctx: context.Context, level: Level, message: String) {
-  let now = birl.now() |> birl.to_iso8601()
-  let id = ctx.id |> uuid.to_string()
-  let level = level |> level_to_string()
-  let message = "[" <> level <> " " <> now <> " " <> id <> "]: " <> message
+pub fn sink_io(message: String) -> Nil {
   io.println(message)
 }
 
-pub fn error(ctx: context.Context, message: String) {
-  log(ctx, Err, message)
+pub fn sink_nil(_: a) -> Nil {
+  Nil
 }
 
-pub fn info(ctx: context.Context, message: String) {
-  log(ctx, Info, message)
+fn format(ctx: Context, level: String, message: String) {
+  let time = birl.now() |> birl.to_iso8601()
+  let id = ctx.id |> id.to_string()
+  "[ " <> level <> " " <> time <> " " <> id <> "] " <> message
 }
 
-pub fn warn(ctx: context.Context, message: String) {
-  log(ctx, Warn, message)
+pub fn new(name name) -> LogActorBuilder {
+  LogActorBuilder(name:, sink: sink_nil)
 }
 
-pub fn on_error(result: Result(a, b), ctx: context.Context, message: String) {
-  result
-  |> result.map_error(fn(x) {
-    error(ctx, message)
-    x
-  })
+pub fn sink(
+  builder: LogActorBuilder,
+  sink: fn(String) -> Nil,
+) -> LogActorBuilder {
+  LogActorBuilder(..builder, sink:)
 }
 
-pub fn on_ok(result: Result(a, b), ctx: context.Context, message: String) {
-  result
-  |> result.map(fn(x) {
-    info(ctx, message)
-    x
-  })
+fn on_message(state: LogActor, msg: LogMessage) {
+  case msg {
+    types.LogMessage(ctx:, level:, message:) -> {
+      format(ctx, level, message)
+      |> state.sink
+
+      actor.continue(state)
+    }
+
+    types.LogActorStop -> actor.stop()
+  }
 }
 
-pub fn on_errorf(
-  result: Result(a, b),
-  ctx: context.Context,
-  message: fn(b) -> String,
-) {
-  result
-  |> result.map_error(fn(err) {
-    err |> message |> error(ctx, _)
-    err
-  })
+pub fn start(builder: LogActorBuilder) {
+  LogActor(sink: builder.sink)
+  |> actor.new()
+  |> actor.named(builder.name)
+  |> actor.on_message(on_message)
+  |> actor.start()
+}
+
+pub fn supervised(builder: LogActorBuilder) {
+  fn() { start(builder) }
+  |> supervision.worker()
+}
+
+pub fn info(ctx: Context, message: String) -> Nil {
+  actor.send(ctx.log, LogMessage(ctx:, level: "Info", message:))
+}
+
+pub fn warn(ctx: Context, message: String) -> Nil {
+  actor.send(ctx.log, LogMessage(ctx:, message:, level: "Warn"))
+}
+
+pub fn error(ctx: Context, message: String) -> Nil {
+  actor.send(ctx.log, LogMessage(ctx:, message:, level: "Error"))
+}
+
+pub fn error_on_error(
+  r: Result(a, b),
+  ctx: Context,
+  message: String,
+) -> Result(a, b) {
+  case r {
+    Ok(_) -> Nil
+    Error(_) -> error(ctx, message)
+  }
+
+  r
+}
+
+pub fn error_on_error_format(
+  r: Result(a, b),
+  ctx: Context,
+  format: fn(b) -> String,
+) -> Result(a, b) {
+  case r {
+    Ok(_) -> Nil
+    Error(err) -> format(err) |> error(ctx, _)
+  }
+
+  r
 }

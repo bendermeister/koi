@@ -2,17 +2,19 @@ import context
 import dot_env
 import dot_env/env
 import gleam/erlang/process
-import gleam/option
+import gleam/option.{Some}
 import gleam/otp/static_supervisor as supervisor
+import id
+import log
 import migration
 import mist
 import pog
+import types.{Context, ID}
 import web
 import wisp
 import wisp/wisp_mist
-import youid/uuid
 
-fn start_application_supervisor(
+pub fn start_application_supervisor(
   name pool_name: process.Name(pog.Message),
   host host: String,
   port port: Int,
@@ -20,49 +22,43 @@ fn start_application_supervisor(
   password password: String,
   database database: String,
 ) {
-  // postgres configuration
-  let pool_child =
-    pog.default_config(pool_name)
-    |> pog.host(host)
-    |> pog.port(port)
-    |> pog.password(option.Some(password))
-    |> pog.user(user)
-    |> pog.database(database)
-    |> pog.pool_size(16)
-    |> pog.supervised()
-
-  // supervisor for postgres connection pool
-  supervisor.new(supervisor.RestForOne)
-  |> supervisor.add(pool_child)
-  |> supervisor.start
+  pog.default_config(pool_name)
+  |> pog.host(host)
+  |> pog.port(port)
+  |> pog.password(Some(password))
+  |> pog.user(user)
+  |> pog.database(database)
+  |> pog.pool_size(16)
+  |> pog.supervised()
 }
 
 pub fn main() -> Nil {
+  // TODO: integrate our logger with thhe erlang logger
+  wisp.configure_logger()
+
   // setup dot_env
   dot_env.new()
   |> dot_env.set_path("./.env")
   |> dot_env.set_debug(False)
   |> dot_env.load()
 
-  // read environment variables
+  // http server environment variables
+  let assert Ok(server_host) = env.get_string("KOI_HOST")
+  let assert Ok(server_port) = env.get_int("KOI_PORT")
+  let assert Ok(server_cookie_secret) = env.get_string("KOI_COOKIE_SECRET")
 
-  // DB ENV variables
+  // database environment variables 
   let assert Ok(db_host) = env.get_string("KOI_DB_HOST")
   let assert Ok(db_port) = env.get_int("KOI_DB_PORT")
   let assert Ok(db_user) = env.get_string("KOI_DB_USER")
   let assert Ok(db_password) = env.get_string("KOI_DB_PASSWORD")
   let assert Ok(db_database) = env.get_string("KOI_DB_DATABASE")
 
-  // Server ENV variables
-  let assert Ok(server_port) = env.get_int("KOI_PORT")
-  let assert Ok(server_host) = env.get_string("KOI_HOST")
-  let assert Ok(cookie_secret) = env.get_string("KOI_COOKIE_SECRET")
-
   // start postgres connection under a supervisor
-  let db = process.new_name("db")
-  let assert Ok(_) =
+  let db_name = process.new_name("db")
+  let db_spec =
     start_application_supervisor(
-      name: db,
+      name: db_name,
       host: db_host,
       port: db_port,
       user: db_user,
@@ -70,29 +66,34 @@ pub fn main() -> Nil {
       database: db_database,
     )
 
-  wisp.configure_logger()
+  let log_actor_name = process.new_name("log_actor")
 
-  // run migrations on database
+  let log_actor_spec =
+    log.new(log_actor_name)
+    |> log.sink(log.sink_io)
+    |> log.supervised
+
   let assert Ok(_) =
-    db
-    |> pog.named_connection()
-    |> context.Context(id: uuid.v4(), db: _, user: option.None)
-    |> migration.migrate()
+    supervisor.new(supervisor.OneForOne)
+    |> supervisor.add(log_actor_spec)
+    |> supervisor.add(db_spec)
+    |> supervisor.start()
 
-  // TODO: replace this with our logger
-  wisp.configure_logger()
+  let log = process.named_subject(log_actor_name)
+  let db = pog.named_connection(db_name)
 
-  // request handler for each incoming request
-  // - a context gets created with a new UUID and a database connection
-  let request_handler = fn(req: wisp.Request) {
-    let db = pog.named_connection(db)
-    let ctx = context.Context(id: uuid.v4(), db:, user: option.None)
-    web.handle_request(ctx, req)
+  let context_base = Context(id: ID("base"), log: log, db:)
+
+  let request_handler = fn(req) {
+    context_base
+    |> context.new()
+    |> web.handle_request(req)
   }
 
-  // start the web server
+  let assert Ok(_) = migration.migrate(context_base)
+
   let assert Ok(_) =
-    wisp_mist.handler(request_handler, cookie_secret)
+    wisp_mist.handler(request_handler, server_cookie_secret)
     |> mist.new()
     |> mist.port(server_port)
     |> mist.bind(server_host)
