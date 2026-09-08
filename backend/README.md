@@ -1,7 +1,7 @@
 # backend
 
 [![Package Version](https://img.shields.io/hexpm/v/backend)](https://hex.pm/packages/backend)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/backend/)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://backend.hexdocs.pm/)
 
 ```sh
 gleam add backend@1
@@ -14,7 +14,7 @@ pub fn main() -> Nil {
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/backend>.
+Further documentation can be found at <https://backend.hexdocs.pm/>.
 
 ## Development
 
