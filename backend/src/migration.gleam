@@ -40,6 +40,7 @@ pub fn migrate(ctx: Context) -> Result(Nil, Nil) {
 
 const migrations = [
   migration_0000,
+  migration_0001,
 ]
 
 pub fn get_level(ctx: Context) -> Result(Int, Nil) {
@@ -78,4 +79,19 @@ fn migration_0000(ctx: Context) -> Result(Nil, Nil) {
   use _ <- result.try(result)
 
   Ok(Nil)
+}
+
+fn migration_0001(ctx) {
+  "
+  CREATE TABLE users (
+    id        UUID NOT NULL UNIQUE,
+    name      TEXT NOT NULL,
+    email     TEXT NOT NULL UNIQUE, 
+    password  TEXT NOT NULL,
+
+    PRIMARY KEY(id)
+  );
+  "
+  |> pog.query()
+  |> sql.execute(ctx)
 }

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+    --color-bg:     #ffffff;
+    --color-fg:     #000000;
+    --color-acc-0:  #c0ff7d;
+    --color-acc-1:  #96e640;
+    --color-acc-2:  #75a83e;
+    --color-error:  #ed5b3e;
+    --color-gray-0: #b0adac;
+    --color-gray-1: #807e7e;
+    --color-gray-2: #474646;
+}
+
+@layer utilities {
+    .text-outline-love {
+        -webkit-text-stroke: 1px var(--color-love);
+    }
+    .text-outline-pine {
+        -webkit-text-stroke: 1px var(--color-pine);
+    }
+}
