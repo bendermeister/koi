@@ -70,7 +70,7 @@ pub fn main() -> Nil {
 
   let log_actor_name = process.new_name("log_actor")
   let auth_actor_name = process.new_name("auth_actor")
-  let cache_actor_name = process.new_name("cache_actor")
+  let kv_name = process.new_name("kv_cache")
 
   let log_actor_spec =
     log.new(log_actor_name)
@@ -81,8 +81,8 @@ pub fn main() -> Nil {
     auth_actor.new(auth_actor_name)
     |> auth_actor.supervised()
 
-  let cache_actor_spec =
-    cache.new(cache_actor_name)
+  let kv_spec =
+    cache.new(kv_name)
     |> cache.supervised()
 
   let assert Ok(_) =
@@ -90,18 +90,17 @@ pub fn main() -> Nil {
     |> supervisor.add(log_actor_spec)
     |> supervisor.add(db_spec)
     |> supervisor.add(auth_actor_spec)
-    |> supervisor.add(cache_actor_spec)
+    |> supervisor.add(kv_spec)
     |> supervisor.start()
 
   let log = process.named_subject(log_actor_name)
   let db = pog.named_connection(db_name)
+  let kv = process.named_subject(kv_name)
   let auth = process.named_subject(auth_actor_name)
-  let cache = process.named_subject(cache_actor_name)
 
-  let context_base = Context(id: ID("base"), log: log, db:, auth:, cache:)
+  let context_base = Context(id: ID("base"), log: log, db:, auth:, kv:)
 
   auth_actor.garbage_collect(context_base)
-  cache.garbage_collect(context_base)
 
   let request_handler = fn(req) {
     context_base

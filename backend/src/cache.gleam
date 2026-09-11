@@ -2,129 +2,116 @@ import gleam/erlang/process
 import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/result
-import log
 import rasa/table
 import types.{
-  type CacheActor, type CacheActorMessage, type Context, CacheActor,
-  CacheActorClear, CacheActorDelete, CacheActorGet, CacheActorSet,
-  CacheActorStop,
+  type Cache, type CacheMessage, Cache, CacheClear, CacheDelete, CacheGet,
+  CacheSet, CacheStop,
 }
 
-pub type Builder {
-  Builder(name: process.Name(CacheActorMessage))
+pub type Builder(key, value) {
+  Builder(name: process.Name(CacheMessage(key, value)))
 }
 
 pub fn new(name) {
   Builder(name:)
 }
 
-fn on_message(actor: CacheActor, msg: CacheActorMessage) {
-  case msg {
-    CacheActorSet(key:, value:, ctx:) -> {
-      log.info(ctx, "cache/set " <> key)
+fn table_init() {
+  table.new()
+  |> table.with_access(table.Public)
+  |> table.with_kind(table.Set)
+  |> table.build()
+}
+
+fn on_message(actor: Cache(key, value), message: CacheMessage(key, value)) {
+  case message {
+    CacheSet(key:, value:) -> {
       let _ = table.insert(actor.table, key, value)
       actor.continue(actor)
     }
-    CacheActorGet(reply_to:, key:, ctx:) -> {
-      let value =
-        table.lookup(actor.table, key)
-        |> log.info_on_ok(ctx, "cache/get " <> key <> " hit")
-        |> log.info_on_error(ctx, "cache/get " <> key <> " miss")
-      actor.send(reply_to, value)
+    CacheGet(reply_to:, key:) -> {
+      table.lookup(actor.table, key)
+      |> actor.send(reply_to, _)
+
       actor.continue(actor)
     }
-    CacheActorDelete(key:, ctx:) -> {
-      log.info(ctx, "cache/delete " <> key)
+    CacheDelete(key:) -> {
       let _ = table.delete(actor.table, key)
       actor.continue(actor)
     }
-    CacheActorStop -> {
+    CacheClear -> {
+      let _ = table.drop(actor.table)
+
+      Cache(table: table_init())
+      |> actor.continue()
+    }
+    CacheStop -> {
       let _ = table.drop(actor.table)
       actor.stop()
-    }
-    CacheActorClear -> {
-      let _ = table.drop(actor.table)
-
-      let table =
-        table.new()
-        |> table.with_kind(table.Set)
-        |> table.with_access(table.Public)
-        |> table.build()
-
-      CacheActor(table:)
-      |> actor.continue()
     }
   }
 }
 
-pub fn start(builder: Builder) {
-  table.new()
-  |> table.with_kind(table.Set)
-  |> table.with_access(table.Public)
-  |> table.build()
-  |> CacheActor
+pub fn start(builder: Builder(key, value)) {
+  Cache(table: table_init())
   |> actor.new()
-  |> actor.on_message(on_message)
   |> actor.named(builder.name)
+  |> actor.on_message(on_message)
   |> actor.start()
 }
 
-pub fn supervised(builder: Builder) {
+pub fn supervised(builder) {
   fn() { start(builder) }
   |> supervision.worker()
 }
 
-pub fn get(ctx: Context, key: String, handler) {
-  let value =
-    actor.call(ctx.cache, 20_000, CacheActorGet(reply_to: _, key:, ctx:))
-  value
-  |> result.try(handler)
-}
-
-pub fn set(ctx: Context, key, value) {
-  actor.send(ctx.cache, CacheActorSet(key:, value:, ctx:))
-}
-
-pub fn cache(ctx: Context, key, to_cached, from_cached, callback) {
-  case get(ctx, key, from_cached) {
-    Ok(value) -> value
-    Error(_) -> {
-      let value = callback()
-      set(ctx, key, to_cached(value))
-      value
-    }
-  }
-}
-
-pub fn try_cache(
-  ctx: Context,
-  key,
-  to_cached,
-  from_cached,
-  callback: fn() -> Result(a, Nil),
-) {
-  case get(ctx, key, from_cached) {
-    Ok(value) -> Ok(value)
-    Error(_) -> {
-      let value = callback()
-      case value {
-        Ok(value) -> set(ctx, key, to_cached(value))
-        Error(_) -> Nil
-      }
-      value
-    }
-  }
-}
-
-pub fn garbage_collect(ctx: Context) {
+pub fn garbage_collect(actor) {
   process.spawn(fn() {
     process.sleep(24 * 60 * 60 * 1000)
-    let _ = garbage_collect(ctx)
-    actor.send(ctx.cache, CacheActorClear)
+    let _ = garbage_collect(actor)
+    clear(actor)
   })
   Nil
 }
 
-pub fn delete(ctx: Context, key) {
-  actor.send(ctx.cache, CacheActorDelete(key:, ctx:))
+pub fn get(cache, key) {
+  actor.call(cache, 20_000, CacheGet(reply_to: _, key:))
+}
+
+pub fn set(cache, key, value) {
+  actor.send(cache, CacheSet(key:, value:))
+}
+
+pub fn clear(cache) {
+  actor.send(cache, CacheClear)
+}
+
+pub fn cached(cache, key, handler) {
+  let value = get(cache, key)
+
+  case value {
+    Ok(value) -> value
+    Error(_) -> {
+      let value = handler()
+      set(cache, key, value)
+      value
+    }
+  }
+}
+
+pub fn try_cached(cache, key, handler) {
+  let value = get(cache, key)
+
+  case value {
+    Ok(value) -> Ok(value)
+    Error(_) -> {
+      let value = handler()
+      let _ = value |> result.map(set(cache, key, _))
+      value
+    }
+  }
+}
+
+pub fn delete(cache, key) {
+  actor.send(cache, CacheDelete(key:))
 }

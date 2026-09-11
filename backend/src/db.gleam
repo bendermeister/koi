@@ -1,7 +1,7 @@
 import beecrypt
-import cache
 import gleam/dynamic/decode
 import gleam/result
+import kv
 import middle/cached
 import middle/id.{type ID}
 import middle/user.{type User, User}
@@ -26,7 +26,7 @@ fn decode_id() {
 }
 
 pub fn user_fetch_by_email(ctx, email) {
-  use <- cache.try_cache(
+  use <- kv.try_cached(
     ctx,
     "db/user_fetch_by_email/" <> email,
     user.to_cached,
@@ -46,6 +46,13 @@ pub fn user_fetch_by_email(ctx, email) {
 }
 
 pub fn user_fetch_password(ctx, id: ID(User)) {
+  use <- kv.try_cached(
+    ctx,
+    "db/user_fetch_password/" <> id.to_string(id),
+    cached.from_string,
+    cached.to_ok_string,
+  )
+
   "SELECT password FROM users WHERE id = $1 LIMIT 1;"
   |> pog.query()
   |> pog.parameter(id |> id.to_string() |> pog.text())
@@ -57,7 +64,7 @@ pub fn user_fetch_password(ctx, id: ID(User)) {
 }
 
 pub fn user_exists_email(ctx, email) {
-  use <- cache.try_cache(
+  use <- kv.try_cached(
     ctx,
     "db/user_exists_email/" <> email,
     cached.from_bool,
@@ -75,8 +82,9 @@ pub fn user_exists_email(ctx, email) {
 }
 
 pub fn user_insert(ctx, user: User, password) {
-  cache.delete(ctx, "db/user_fetch_by_email/" <> user.email)
-  cache.delete(ctx, "db/user_exists_email/" <> user.email)
+  kv.delete(ctx, "db/user_exists_email/" <> user.email)
+  kv.delete(ctx, "db/user_fetch_by_email/" <> user.email)
+  kv.delete(ctx, "db/user_fetch_password/" <> id.to_string(user.id))
 
   let password = beecrypt.hash(password)
   " INSERT INTO users (id, name, email, password) VALUES($1, $2, $3, $4); "

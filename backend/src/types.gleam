@@ -27,7 +27,7 @@ pub type Context {
     log: process.Subject(LogMessage),
     db: pog.Connection,
     auth: process.Subject(AuthActorMessage),
-    cache: process.Subject(CacheActorMessage),
+    kv: process.Subject(CacheMessage(String, Cached)),
   )
 }
 
@@ -55,18 +55,14 @@ pub type AuthActorMessage {
   AuthActorStop
 }
 
-pub type CacheActor {
-  CacheActor(table: table.Table(String, Cached))
+pub type Cache(key, value) {
+  Cache(table: table.Table(key, value))
 }
 
-pub type CacheActorMessage {
-  CacheActorSet(key: String, value: Cached, ctx: Context)
-  CacheActorGet(
-    reply_to: process.Subject(Result(Cached, Nil)),
-    key: String,
-    ctx: Context,
-  )
-  CacheActorDelete(key: String, ctx: Context)
-  CacheActorStop
-  CacheActorClear
+pub type CacheMessage(key, value) {
+  CacheSet(key: key, value: value)
+  CacheGet(reply_to: process.Subject(Result(value, Nil)), key: key)
+  CacheDelete(key: key)
+  CacheClear
+  CacheStop
 }

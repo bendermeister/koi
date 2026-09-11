@@ -41,6 +41,9 @@ pub fn migrate(ctx: Context) -> Result(Nil, Nil) {
 const migrations = [
   migration_0000,
   migration_0001,
+  migration_0002,
+  migration_0003,
+  migration_0004,
 ]
 
 pub fn get_level(ctx: Context) -> Result(Int, Nil) {
@@ -90,6 +93,49 @@ fn migration_0001(ctx) {
     password  TEXT NOT NULL,
 
     PRIMARY KEY(id)
+  );
+  "
+  |> pog.query()
+  |> sql.execute(ctx)
+}
+
+fn migration_0002(ctx) {
+  "
+  CREATE TABLE task (
+    id      UUID NOT NULL UNIQUE,
+    title   TEXT NOT NULL,
+    body    TEXT NOT NULL,
+    opened  TIME NOT NULL,
+    closed  TIME,
+
+    PRIMARY KEY(id)
+  );
+  "
+  |> pog.query()
+  |> sql.execute(ctx)
+}
+
+fn migration_0003(ctx) {
+  "
+  CREATE TABLE tag (
+    id    UUID NOT NULL UNIQUE,
+    name  TEXT NOT NULL UNIQUE,
+
+    PRIMARY KEY(id)
+  );
+  "
+  |> pog.query
+  |> sql.execute(ctx)
+}
+
+fn migration_0004(ctx) {
+  "
+  CREATE TABLE task_tag (
+    task_id UUID NOT NULL,
+    tag_id UUID NOT NULL,
+
+    FOREIGN KEY (task_id) REFERENCES task(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tag(id) ON DELETE CASCADE
   );
   "
   |> pog.query()
