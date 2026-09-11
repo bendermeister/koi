@@ -1,7 +1,9 @@
 import page/login
+import page/not_found
+import page/register
 
 pub type Page {
   Login(login.Model)
-  SignUp
-  NotFound
+  NotFound(not_found.Model)
+  Register(register.Model)
 }

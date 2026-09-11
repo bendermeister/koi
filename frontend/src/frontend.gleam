@@ -1,34 +1,50 @@
-import gleam/io
+import gleam/option.{None}
 import gleam/result
 import lustre
 import lustre/effect
 import lustre/element
-import lustre/element/html
 import model.{type Model}
 import modem
 import msg
 import page
 import page/login
-import route.{type Route}
+import page/not_found
+import page/register
+import route
 import update
 
 fn init(_) {
-  let initial_route =
+  let init_route =
     modem.initial_uri()
     |> result.map(route.from_uri)
     |> result.unwrap(route.NotFound)
-    |> msg.ClientLoadedRoute
 
-  let #(model, effect) =
-    model.Model(page: page.NotFound)
-    |> update.update(initial_route)
+  let modem_init =
+    modem.init(fn(uri) {
+      uri
+      |> route.from_uri
+      |> msg.ClientLoadedRoute
+    })
+
+  let login_effect = modem.push(route.Login |> route.to_string, None, None)
+  let #(page, page_effect) = login.init(Nil)
+  let page_effect = page_effect |> effect.map(msg.Login)
+  let page = page.Login(page)
+
+  let effect =
+    [login_effect, page_effect, modem_init]
+    |> effect.batch()
+
+  let model = model.Model(page:, token: "", init_route:)
+
+  #(model, effect)
 }
 
 fn view(model: Model) {
   case model.page {
     page.Login(page) -> login.view(page) |> element.map(msg.Login)
-    page.SignUp -> todo
-    page.NotFound -> html.text("404 not found")
+    page.NotFound(page) -> not_found.view(page) |> element.map(msg.NotFound)
+    page.Register(page) -> register.view(page) |> element.map(msg.Register)
   }
 }
 

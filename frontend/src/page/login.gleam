@@ -1,8 +1,13 @@
 import api
 import component
 import errview
+import gleam/option.{None}
+import gleam/pair
 import lustre/attribute.{class}
 import lustre/element
+import lustre/event
+import modem
+import route
 
 import lustre/effect
 import lustre/element/html.{div}
@@ -15,6 +20,7 @@ pub type Msg {
   ErrorMessage(error: String)
   Success(token: String)
   ErrViewMsg(errview.ErrViewMsg)
+  UserChangedRoute(route: route.Route)
 }
 
 pub type Model {
@@ -26,7 +32,7 @@ pub type Model {
   )
 }
 
-pub fn init() {
+pub fn init(_) {
   #(
     Model(
       email: "",
@@ -70,6 +76,11 @@ pub fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       let errors = errview.update(model.errors, msg)
       #(Model(..model, errors:), effect.none())
     }
+    UserChangedRoute(route:) ->
+      route
+      |> route.to_string
+      |> modem.push(None, None)
+      |> pair.new(model, _)
   }
 }
 
@@ -92,7 +103,15 @@ pub fn view(model: Model) {
           PasswordVisibleToggle,
         ),
       ),
-      div([class("w-full flex flex-row justify-end items-center")], [
+      div([class("w-full flex flex-row justify-end items-center gap-2")], [
+        div(
+          [
+            class("w-fit text-sm text-gray-2"),
+            class("hover:cursor-pointer"),
+            event.on_click(UserChangedRoute(route.Register)),
+          ],
+          [html.text("register")],
+        ),
         div([class("w-fit")], [
           component.button("login", UserLoggedIn),
         ]),

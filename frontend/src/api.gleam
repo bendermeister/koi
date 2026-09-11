@@ -48,7 +48,10 @@ pub fn login(email email, password password, handler handler) {
     ])
 
   let decoder =
-    decode.string
+    {
+      use token <- decode.field("success", decode.string)
+      decode.success(token)
+    }
     |> decode_result
 
   let handler =
@@ -61,4 +64,42 @@ pub fn login(email email, password password, handler handler) {
     })
 
   rsvp.post("/api/login", body, handler)
+}
+
+pub fn register(
+  email email,
+  password password,
+  password_repeat password_repeat,
+  handler handler,
+) {
+  let body =
+    [
+      email
+        |> json.string
+        |> pair.new("email", _),
+      password
+        |> json.string
+        |> pair.new("password", _),
+      password_repeat
+        |> json.string
+        |> pair.new("password_repeat", _),
+    ]
+    |> json.object()
+
+  let decoder =
+    {
+      use token <- decode.field("success", decode.string)
+      decode.success(token)
+    }
+    |> decode_result
+
+  let handler =
+    rsvp.expect_json(decoder, fn(result) {
+      case result {
+        Ok(x) -> handler(x)
+        Error(err) -> err |> rsvp_error_to_error() |> handler()
+      }
+    })
+
+  rsvp.post("/api/register", body, handler)
 }
