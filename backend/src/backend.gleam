@@ -1,15 +1,16 @@
+import auth_actor
 import context
 import dot_env
 import dot_env/env
 import gleam/erlang/process
 import gleam/option.{Some}
 import gleam/otp/static_supervisor as supervisor
-import id
 import log
+import middle/id.{ID}
 import migration
 import mist
 import pog
-import types.{Context, ID}
+import types.{Context}
 import web
 import wisp
 import wisp/wisp_mist
@@ -67,22 +68,31 @@ pub fn main() -> Nil {
     )
 
   let log_actor_name = process.new_name("log_actor")
+  let auth_actor_name = process.new_name("auth_actor")
 
   let log_actor_spec =
     log.new(log_actor_name)
     |> log.sink(log.sink_io)
     |> log.supervised
 
+  let auth_actor_spec =
+    auth_actor.new(auth_actor_name)
+    |> auth_actor.supervised()
+
   let assert Ok(_) =
     supervisor.new(supervisor.OneForOne)
     |> supervisor.add(log_actor_spec)
     |> supervisor.add(db_spec)
+    |> supervisor.add(auth_actor_spec)
     |> supervisor.start()
 
   let log = process.named_subject(log_actor_name)
   let db = pog.named_connection(db_name)
+  let auth = process.named_subject(auth_actor_name)
 
-  let context_base = Context(id: ID("base"), log: log, db:)
+  let context_base = Context(id: ID("base"), log: log, db:, auth:)
+
+  auth_actor.garbage_collect(context_base)
 
   let request_handler = fn(req) {
     context_base

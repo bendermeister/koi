@@ -2,7 +2,7 @@ import birl
 import gleam/io
 import gleam/otp/actor
 import gleam/otp/supervision
-import id
+import middle/id
 import types.{
   type Context, type LogActor, type LogActorBuilder, type LogMessage, LogActor,
   LogActorBuilder, LogMessage,

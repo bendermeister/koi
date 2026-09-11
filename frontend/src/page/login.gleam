@@ -6,6 +6,7 @@ import gleam/pair
 import lustre/attribute.{class}
 import lustre/element
 import lustre/event
+import middle/token.{type Token}
 import modem
 import route
 
@@ -18,7 +19,7 @@ pub type Msg {
   EmailChanged(email: String)
   UserLoggedIn
   ErrorMessage(error: String)
-  Success(token: String)
+  Success(token: Token)
   ErrViewMsg(errview.ErrViewMsg)
   UserChangedRoute(route: route.Route)
 }
@@ -90,11 +91,11 @@ pub fn view(model: Model) {
       div([class("w-full flex flex-row justify-start items-center")], [
         component.logo(),
       ]),
-      component.labeld(
+      component.labeled(
         "E-Mail",
         component.input_email(model.email, EmailChanged),
       ),
-      component.labeld(
+      component.labeled(
         "Password",
         component.input_password(
           model.password,

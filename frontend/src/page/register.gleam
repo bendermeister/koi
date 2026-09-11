@@ -8,6 +8,9 @@ import lustre/effect
 import lustre/element
 import lustre/element/html.{div}
 import lustre/event
+import middle/id
+import middle/token.{type Token}
+import middle/user
 import route
 
 pub type Model {
@@ -17,15 +20,17 @@ pub type Model {
     password_repeat: String,
     password_visible: Bool,
     errors: errview.ErrView,
+    name: String,
   )
 }
 
 pub type Msg {
+  NameChanged(name: String)
   PasswordChanged(password: String)
   PasswordRepeatChanged(password_repeat: String)
   EmailChanged(email: String)
   PasswordVisibleToggle
-  Success(token: String)
+  Success(token: Token)
   UserChangedRoute(route: route.Route)
   UserRegistered
   ErrorMsg(error: String)
@@ -35,6 +40,7 @@ pub type Msg {
 pub fn init(_) {
   #(
     Model(
+      name: "",
       email: "",
       password: "",
       password_repeat: "",
@@ -61,15 +67,9 @@ pub fn update(model: Model, msg: Msg) {
       route
       |> route.to_push_effect
       |> pair.new(model, _)
-    UserRegistered -> {
-      use <- bool.lazy_guard(
-        when: model.password != model.password_repeat,
-        return: fn() {
-          update(model, ErrorMsg("password and repeated password must match"))
-        },
-      )
+    UserRegistered ->
       api.register(
-        email: model.email,
+        user: user.User(id: id.ID("temp"), name: model.name, email: model.email),
         password: model.password,
         password_repeat: model.password_repeat,
         handler: fn(result) {
@@ -80,7 +80,6 @@ pub fn update(model: Model, msg: Msg) {
         },
       )
       |> pair.new(model, _)
-    }
 
     ErrorMsg(error:) -> {
       let #(errors, effect) = errview.add(model.errors, error)
@@ -94,6 +93,7 @@ pub fn update(model: Model, msg: Msg) {
       #(Model(..model, errors:), effect.none())
     }
     Success(token: _) -> #(model, effect.none())
+    NameChanged(name:) -> #(Model(..model, name:), effect.none())
   }
 }
 
@@ -103,11 +103,12 @@ pub fn view(model: Model) {
       div([class("w-full flex flex-row justify-start items-center")], [
         component.logo(),
       ]),
-      component.labeld(
+      component.labeled("Name", component.input_text(model.name, NameChanged)),
+      component.labeled(
         "E-Mail",
         component.input_email(model.email, EmailChanged),
       ),
-      component.labeld(
+      component.labeled(
         "Password",
         component.input_password(
           model.password,
@@ -116,7 +117,7 @@ pub fn view(model: Model) {
           PasswordVisibleToggle,
         ),
       ),
-      component.labeld(
+      component.labeled(
         "Repeat Password",
         component.input_password(
           model.password_repeat,

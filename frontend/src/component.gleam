@@ -9,7 +9,7 @@ pub fn logo() {
   ])
 }
 
-pub fn labeld(label, item) {
+pub fn labeled(label, item) {
   div([class("w-full flex flex-col gap-1")], [
     div(
       [
@@ -54,9 +54,23 @@ pub fn input_password(
   ])
 }
 
+pub fn input_text(value: String, handler: fn(String) -> a) {
+  div([class("w-full")], [
+    input([
+      attr.type_("text"),
+      class("w-full p-1 rounded border border-gray-2"),
+      class("focus:outline-none"),
+      class("focus:border-acc-2 focus:ring-1 focus-ring-acc-2"),
+      attr.value(value),
+      event.on_input(handler),
+    ]),
+  ])
+}
+
 pub fn input_email(value: String, handler: fn(String) -> a) {
   div([class("w-full")], [
     input([
+      attr.type_("email"),
       class("w-full p-1 rounded border border-gray-2"),
       class("focus:outline-none"),
       class("focus:border-acc-2 focus:ring-1 focus-ring-acc-2"),

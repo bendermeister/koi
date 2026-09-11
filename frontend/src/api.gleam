@@ -3,6 +3,8 @@ import gleam/http/response
 import gleam/int
 import gleam/json
 import gleam/pair
+import middle/token
+import middle/user
 import rsvp
 
 fn decode_result(decoder) {
@@ -49,7 +51,7 @@ pub fn login(email email, password password, handler handler) {
 
   let decoder =
     {
-      use token <- decode.field("success", decode.string)
+      use token <- decode.field("success", token.decode())
       decode.success(token)
     }
     |> decode_result
@@ -67,16 +69,16 @@ pub fn login(email email, password password, handler handler) {
 }
 
 pub fn register(
-  email email,
+  user user,
   password password,
   password_repeat password_repeat,
   handler handler,
 ) {
   let body =
     [
-      email
-        |> json.string
-        |> pair.new("email", _),
+      user
+        |> user.to_json
+        |> pair.new("user", _),
       password
         |> json.string
         |> pair.new("password", _),
@@ -88,7 +90,7 @@ pub fn register(
 
   let decoder =
     {
-      use token <- decode.field("success", decode.string)
+      use token <- decode.field("success", token.decode())
       decode.success(token)
     }
     |> decode_result
