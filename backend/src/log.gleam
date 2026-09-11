@@ -63,6 +63,26 @@ pub fn info(ctx: Context, message: String) -> Nil {
   actor.send(ctx.log, LogMessage(ctx:, level: "Info", message:))
 }
 
+pub fn info_on_ok(r: Result(a, b), ctx: Context, message: String) {
+  case r {
+    Ok(ok) -> {
+      info(ctx, message)
+      Ok(ok)
+    }
+    Error(err) -> Error(err)
+  }
+}
+
+pub fn info_on_error(r: Result(a, b), ctx: Context, message: String) {
+  case r {
+    Ok(ok) -> Ok(ok)
+    Error(err) -> {
+      info(ctx, message)
+      Error(err)
+    }
+  }
+}
+
 pub fn warn(ctx: Context, message: String) -> Nil {
   actor.send(ctx.log, LogMessage(ctx:, message:, level: "Warn"))
 }

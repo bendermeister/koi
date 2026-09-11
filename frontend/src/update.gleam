@@ -1,5 +1,7 @@
+import cache
 import gleam/pair
 import lustre/effect
+import middle/token.{Token}
 import model.{Model}
 import msg
 import page
@@ -28,13 +30,13 @@ pub fn update(model: model.Model, msg: msg.Msg) {
   case msg {
     msg.ClientLoadedRoute(route:) ->
       case route, model.token {
-        route.Register, "" ->
+        route.Register, Token("") ->
           load_route(model, register.init, Nil, page.Register, msg.Register)
 
-        route.Login, "" ->
+        route.Login, Token("") ->
           load_route(model, login.init, Nil, page.Login, msg.Login)
 
-        _, "" ->
+        _, Token("") ->
           route.Login
           |> route.to_push_effect()
           |> pair.new(model, _)
@@ -48,7 +50,7 @@ pub fn update(model: model.Model, msg: msg.Msg) {
         route.Logout, _ ->
           route.Login
           |> route.to_push_effect()
-          |> pair.new(Model(..model, token: ""), _)
+          |> pair.new(Model(..model, token: Token("")), _)
 
         route.NotFound, _ ->
           load_route(
@@ -59,6 +61,22 @@ pub fn update(model: model.Model, msg: msg.Msg) {
             msg.NotFound,
           )
       }
+
+    // this is a bit hacky
+    msg.Register(register.Success(token:)) -> {
+      cache.set("auth/token", token.to_cached(token))
+      let model = Model(..model, token:)
+      let effect = model.init_route |> route.to_push_effect
+      #(model, effect)
+    }
+
+    // this is a bit hacky
+    msg.Login(login.Success(token:)) -> {
+      cache.set("auth/token", token.to_cached(token))
+      let model = Model(..model, token:)
+      let effect = model.init_route |> route.to_push_effect
+      #(model, effect)
+    }
 
     msg.Register(msg) ->
       case model.page {

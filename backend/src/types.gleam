@@ -1,10 +1,12 @@
 import birl
 import gleam/dict
 import gleam/erlang/process
+import middle/cached.{type Cached}
 import middle/id.{type ID}
 import middle/token.{type Token}
 import middle/user.{type User}
 import pog
+import rasa/table
 import youid/uuid
 
 pub fn id_new() {
@@ -25,6 +27,7 @@ pub type Context {
     log: process.Subject(LogMessage),
     db: pog.Connection,
     auth: process.Subject(AuthActorMessage),
+    cache: process.Subject(CacheActorMessage),
   )
 }
 
@@ -50,4 +53,20 @@ pub type AuthActorMessage {
   AuthActorGet(reply_to: process.Subject(Result(User, Nil)), token: Token)
   AuthActorGarbageCollect
   AuthActorStop
+}
+
+pub type CacheActor {
+  CacheActor(table: table.Table(String, Cached))
+}
+
+pub type CacheActorMessage {
+  CacheActorSet(key: String, value: Cached, ctx: Context)
+  CacheActorGet(
+    reply_to: process.Subject(Result(Cached, Nil)),
+    key: String,
+    ctx: Context,
+  )
+  CacheActorDelete(key: String, ctx: Context)
+  CacheActorStop
+  CacheActorClear
 }

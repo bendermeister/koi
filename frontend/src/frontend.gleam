@@ -1,9 +1,11 @@
+import cache
 import gleam/option.{None}
 import gleam/result
 import lustre
 import lustre/effect
 import lustre/element
-import model.{type Model}
+import middle/token.{Token}
+import model.{type Model, Model}
 import modem
 import msg
 import page
@@ -26,18 +28,33 @@ fn init(_) {
       |> msg.ClientLoadedRoute
     })
 
+  let token = cache.get("auth/token", token.from_cached)
+
   let login_effect = modem.push(route.Login |> route.to_string, None, None)
   let #(page, page_effect) = login.init(Nil)
   let page_effect = page_effect |> effect.map(msg.Login)
   let page = page.Login(page)
 
-  let effect =
-    [login_effect, page_effect, modem_init]
-    |> effect.batch()
+  case token {
+    Ok(token) -> {
+      let #(page, _) = not_found.init(token)
+      let page = page.NotFound(page)
+      let model = Model(page:, token:, init_route:)
+      let #(model, effect) =
+        update.update(model, msg.ClientLoadedRoute(init_route))
+      let effect = effect.batch([modem_init, effect])
+      #(model, effect)
+    }
+    Error(_) -> {
+      let effect =
+        [login_effect, page_effect, modem_init]
+        |> effect.batch()
 
-  let model = model.Model(page:, token: "", init_route:)
+      let model = Model(page:, token: Token(""), init_route:)
 
-  #(model, effect)
+      #(model, effect)
+    }
+  }
 }
 
 fn view(model: Model) {

@@ -1,6 +1,8 @@
 import gleam/dynamic/decode
 import gleam/json
 import gleam/pair
+import gleam/result
+import middle/cached
 import middle/id.{type ID}
 
 pub type User {
@@ -22,4 +24,15 @@ pub fn decode_json() {
   use email <- decode.field("email", decode.string)
   User(id:, name:, email:)
   |> decode.success()
+}
+
+pub fn to_cached(u) {
+  u |> to_json |> json.to_string |> cached.from_string
+}
+
+pub fn from_cached(u) {
+  u
+  |> cached.to_string
+  |> json.parse(decode_json())
+  |> result.replace_error(Nil)
 }
